@@ -35,7 +35,7 @@ CREATE TABLE wifi_hourly (
   vendor         VARCHAR(16)  NOT NULL,
   site           VARCHAR(64)  NOT NULL,
   ap_name        VARCHAR(64)  NOT NULL,
-  band           VARCHAR(8)   NULL,
+  band           VARCHAR(8)   NOT NULL DEFAULT '',
   samples        INT          NOT NULL,
   clients_unik   INT          NOT NULL,
   avg_rssi       DECIMAL(5,1) NULL,

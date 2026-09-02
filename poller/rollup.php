@@ -36,7 +36,7 @@ SELECT
   vendor,
   site,
   ap_name,
-  band,
+  COALESCE(band, '')                              AS band,
   COUNT(*)                                        AS samples,
   COUNT(DISTINCT client_mac)                      AS clients_unik,
   ROUND(AVG(rssi), 1)                             AS avg_rssi,
@@ -47,7 +47,7 @@ FROM wifi_samples
 WHERE ts >= DATE_FORMAT(NOW() - INTERVAL 3 HOUR, '%Y-%m-%d %H:00:00')
   AND ts <  DATE_FORMAT(NOW(), '%Y-%m-%d %H:00:00')
   AND rssi IS NOT NULL
-GROUP BY hour_ts, vendor, site, ap_name, band
+GROUP BY hour_ts, vendor, site, ap_name, COALESCE(band, '')
 ";
 
 $stmt = $pdo->prepare($sql);
