@@ -1,0 +1,140 @@
+<!doctype html>
+<html lang="id">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Login — WiFi Poller Dashboard</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #0b0d12;
+      --panel: #141821;
+      --panel-border: #232833;
+      --text: #e8eaf0;
+      --text-dim: #8a91a3;
+      --accent: #5b8def;
+      --accent-dim: rgba(91, 141, 239, 0.12);
+      --bad: #ec5f56;
+      --bad-bg: rgba(236, 95, 86, 0.1);
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+    }
+    .card {
+      width: 100%;
+      max-width: 340px;
+      padding: 32px;
+      background: var(--panel);
+      border: 1px solid var(--panel-border);
+      border-radius: 14px;
+      box-shadow: 0 16px 40px rgba(0, 0, 0, 0.45);
+    }
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 24px;
+    }
+    .logo {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 34px;
+      height: 34px;
+      border-radius: 9px;
+      background: linear-gradient(135deg, var(--accent), #7f5bef);
+      flex-shrink: 0;
+    }
+    .logo svg { width: 18px; height: 18px; color: #fff; }
+    h1 { font-size: 15px; margin: 0; font-weight: 700; }
+    .subtitle { font-size: 12px; color: var(--text-dim); margin-top: 2px; }
+    label {
+      display: block;
+      font-size: 12px;
+      color: var(--text-dim);
+      margin: 16px 0 6px;
+    }
+    input {
+      width: 100%;
+      background: #10131a;
+      color: var(--text);
+      border: 1px solid var(--panel-border);
+      border-radius: 8px;
+      padding: 10px 12px;
+      font-size: 14px;
+      font-family: inherit;
+    }
+    input:focus {
+      outline: none;
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px var(--accent-dim);
+    }
+    button {
+      width: 100%;
+      margin-top: 22px;
+      padding: 10px 12px;
+      border: none;
+      border-radius: 8px;
+      background: var(--accent);
+      color: #fff;
+      font-size: 14px;
+      font-weight: 600;
+      font-family: inherit;
+      cursor: pointer;
+      transition: filter 0.1s ease;
+    }
+    button:hover { filter: brightness(1.1); }
+    .error {
+      margin-top: 16px;
+      padding: 8px 12px;
+      border-radius: 8px;
+      background: var(--bad-bg);
+      color: var(--bad);
+      font-size: 12.5px;
+      display: none;
+    }
+    .error.show { display: block; }
+  </style>
+</head>
+<body>
+  <form class="card" method="POST" action="/login">
+    <div class="brand">
+      <span class="logo" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M5 12.5a11 11 0 0 1 14 0" />
+          <path d="M8.5 16a6 6 0 0 1 7 0" />
+          <circle cx="12" cy="19.5" r="1.1" fill="currentColor" stroke="none" />
+        </svg>
+      </span>
+      <div>
+        <h1>WiFi Poller</h1>
+        <div class="subtitle">Masuk untuk lanjut ke dashboard</div>
+      </div>
+    </div>
+
+    <label for="username">Username</label>
+    <input type="text" id="username" name="username" autocomplete="username" required autofocus />
+
+    <label for="password">Password</label>
+    <input type="password" id="password" name="password" autocomplete="current-password" required />
+
+    <div class="error" id="error">Username atau password salah.</div>
+
+    <button type="submit">Masuk</button>
+  </form>
+
+  <script>
+    if (new URLSearchParams(location.search).get('error')) {
+      document.getElementById('error').classList.add('show');
+    }
+  </script>
+</body>
+</html>

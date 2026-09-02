@@ -1,0 +1,188 @@
+<!doctype html>
+<html lang="id">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>WiFi Poller Dashboard</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <link href="https://cdn.jsdelivr.net/npm/tom-select@2.3.1/dist/css/tom-select.default.min.css" rel="stylesheet" />
+  <link rel="stylesheet" href="style.css" />
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/tom-select@2.3.1/dist/js/tom-select.complete.min.js"></script>
+</head>
+<body>
+  <header>
+    <div class="brand">
+      <span class="logo" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M5 12.5a11 11 0 0 1 14 0" />
+          <path d="M8.5 16a6 6 0 0 1 7 0" />
+          <circle cx="12" cy="19.5" r="1.1" fill="currentColor" stroke="none" />
+        </svg>
+      </span>
+      <div class="brand-text">
+        <h1>WiFi Poller</h1>
+        <span class="subtitle">Monitoring RSSI &amp; Client Real-time</span>
+      </div>
+    </div>
+    <div class="header-right">
+      <div id="status"><span class="dot"></span><span id="status-text">menghubungkan...</span></div>
+      <form method="POST" action="/logout"><button type="submit" class="logout-btn">Keluar</button></form>
+    </div>
+  </header>
+
+  <nav class="subnav">
+    <a href="#section-aps">Per Access Point</a>
+    <a href="#section-history">Tren Historis</a>
+    <a href="#section-clients">Client Live</a>
+    <span class="global-filter">
+      <label for="global-filter-vendor">Vendor</label>
+      <select id="global-filter-vendor"><option value="">Semua Vendor</option></select>
+    </span>
+  </nav>
+
+  <main>
+    <div class="cards">
+      <div class="card clickable" id="card-clients-box" title="Klik untuk reset filter">
+        <span class="icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M23 21v-2a4 4 0 0 0-3-3.87" /><path d="M16 3.13a4 4 0 0 1 0 7.75" /></svg>
+        </span>
+        <div class="meta">
+          <div class="label">Client Aktif</div>
+          <div class="value" id="card-clients">-</div>
+        </div>
+      </div>
+      <div class="card clickable" id="card-aps-box" title="Klik untuk lihat tabel AP">
+        <span class="icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="9" width="20" height="6" rx="1.5" /><path d="M6 15v2M18 15v2M9 9V7a3 3 0 0 1 6 0v2" /></svg>
+        </span>
+        <div class="meta">
+          <div class="label">AP Aktif</div>
+          <div class="value" id="card-aps">-</div>
+        </div>
+      </div>
+      <div class="card warn clickable" id="card-lemah-box" title="Klik untuk lihat daftar client">
+        <span class="icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 9v4M12 17h.01" /><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L14.71 3.86a2 2 0 0 0-3.42 0Z" /></svg>
+        </span>
+        <div class="meta">
+          <div class="label">Sinyal Lemah</div>
+          <div class="value" id="card-lemah">-</div>
+        </div>
+      </div>
+      <div class="card bad clickable" id="card-sangat-lemah-box" title="Klik untuk lihat daftar client">
+        <span class="icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10" /><path d="m15 9-6 6M9 9l6 6" /></svg>
+        </span>
+        <div class="meta">
+          <div class="label">Sinyal Sangat Lemah</div>
+          <div class="value" id="card-sangat-lemah">-</div>
+        </div>
+      </div>
+      <div class="card">
+        <span class="icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10" /><path d="M12 6v6l4 2" /></svg>
+        </span>
+        <div class="meta">
+          <div class="label">Update Terakhir</div>
+          <div class="value small" id="card-ts">-</div>
+        </div>
+      </div>
+    </div>
+
+    <section id="section-aps">
+      <h2>
+        <span class="title"><span class="section-icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="9" width="20" height="6" rx="1.5" /><path d="M6 15v2M18 15v2M9 9V7a3 3 0 0 1 6 0v2" /></svg>
+        </span>Per Access Point</span>
+        <span class="controls">
+          <select id="ap-filter-site"><option value="">Semua Site</option></select>
+          <select id="ap-filter-band"><option value="">Semua Band</option></select>
+        </span>
+      </h2>
+      <div class="table-wrap">
+        <table class="table-fixed">
+          <colgroup>
+            <col style="width:17%"><col style="width:19%"><col style="width:8%">
+            <col style="width:9%"><col style="width:8%"><col style="width:11%">
+            <col style="width:11%"><col style="width:8%"><col style="width:9%">
+          </colgroup>
+          <thead>
+            <tr class="sortable-row">
+              <th data-key="site">Site</th><th data-key="ap_name">AP</th>
+              <th data-key="band">Band</th><th data-key="vendor">Vendor</th>
+              <th data-key="clients">Client</th><th data-key="avg_rssi">Avg RSSI</th>
+              <th data-key="min_rssi">Min RSSI</th><th data-key="lemah">Lemah</th>
+              <th data-key="sangat_lemah">Sangat Lemah</th>
+            </tr>
+          </thead>
+          <tbody id="ap-table"></tbody>
+        </table>
+        <div class="empty" id="ap-empty" hidden>Belum ada data.</div>
+      </div>
+    </section>
+
+    <section id="section-history">
+      <h2>
+        <span class="title"><span class="section-icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18" /><path d="m19 9-5 5-4-4-4 4" /></svg>
+        </span>Tren Historis</span>
+        <span class="controls">
+          <select id="hist-ap"><option value="">Semua AP</option></select>
+          <select id="hist-hours">
+            <option value="6">6 jam</option>
+            <option value="24" selected>24 jam</option>
+            <option value="72">3 hari</option>
+            <option value="168">7 hari</option>
+          </select>
+        </span>
+      </h2>
+      <div id="historyChart"><canvas id="chart"></canvas></div>
+    </section>
+
+    <section id="section-clients">
+      <h2>
+        <span class="title"><span class="section-icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M23 21v-2a4 4 0 0 0-3-3.87" /><path d="M16 3.13a4 4 0 0 1 0 7.75" /></svg>
+        </span>Client Live <span class="count-badge" id="client-count">0</span></span>
+        <span class="controls">
+          <input type="text" id="client-filter-search" placeholder="cari MAC / username / AP / SSID" />
+          <select id="client-filter-site"><option value="">Semua Site</option></select>
+          <select id="client-filter-band"><option value="">Semua Band</option></select>
+          <select id="client-filter-signal">
+            <option value="">Semua Sinyal</option>
+            <option value="lemah">Lemah</option>
+            <option value="sangat_lemah">Sangat Lemah</option>
+          </select>
+        </span>
+      </h2>
+      <div class="table-wrap">
+        <table class="table-fixed">
+          <colgroup>
+            <col style="width:15%"><col style="width:12%"><col style="width:13%">
+            <col style="width:15%"><col style="width:14%"><col style="width:8%">
+            <col style="width:8%"><col style="width:8%"><col style="width:7%">
+          </colgroup>
+          <thead>
+            <tr class="sortable-row">
+              <th data-key="client_mac">MAC</th><th data-key="username">Username</th>
+              <th data-key="site">Site</th><th data-key="ap_name">AP</th>
+              <th data-key="ssid">SSID</th><th data-key="band">Band</th>
+              <th data-key="vendor">Vendor</th><th data-key="rssi">RSSI</th>
+              <th data-key="snr">SNR</th>
+            </tr>
+          </thead>
+          <tbody id="client-table"></tbody>
+        </table>
+        <div class="empty" id="client-empty" hidden>Belum ada client.</div>
+      </div>
+    </section>
+
+    <footer>WiFi Poller Dashboard &middot; data dari <code>wifi_analytics</code></footer>
+  </main>
+
+  <script src="app.js"></script>
+</body>
+</html>

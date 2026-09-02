@@ -1,0 +1,617 @@
+:root {
+  color-scheme: dark;
+  --bg: #0b0d12;
+  --bg-elevated: #10131a;
+  --panel: #141821;
+  --panel-alt: #10131a;
+  --panel-border: #232833;
+  --text: #e8eaf0;
+  --text-dim: #8a91a3;
+  --text-faint: #565d6e;
+  --accent: #5b8def;
+  --accent-dim: rgba(91, 141, 239, 0.12);
+  --good: #34c78c;
+  --warn: #e3a33e;
+  --bad: #ec5f56;
+  --warn-bg: rgba(227, 163, 62, 0.1);
+  --bad-bg: rgba(236, 95, 86, 0.1);
+  --radius: 12px;
+  --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: var(--font-sans);
+  background: var(--bg);
+  color: var(--text);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ---------- header ---------- */
+
+header {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 28px;
+  background: rgba(11, 13, 18, 0.85);
+  backdrop-filter: blur(10px);
+  border-bottom: 1px solid var(--panel-border);
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.logo {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 9px;
+  background: linear-gradient(135deg, var(--accent), #7f5bef);
+  color: #fff;
+  flex-shrink: 0;
+}
+
+.logo svg {
+  width: 20px;
+  height: 20px;
+}
+
+.brand-text {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.25;
+}
+
+.brand-text h1 {
+  font-size: 16px;
+  margin: 0;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
+.brand-text .subtitle {
+  font-size: 12px;
+  color: var(--text-dim);
+}
+
+#status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-dim);
+  padding: 6px 12px;
+  border: 1px solid var(--panel-border);
+  border-radius: 20px;
+  background: var(--panel);
+}
+
+#status .dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--bad);
+  box-shadow: 0 0 0 3px var(--bad-bg);
+}
+
+#status.connected .dot {
+  background: var(--good);
+  box-shadow: 0 0 0 3px rgba(52, 199, 140, 0.15);
+}
+
+.header-right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.logout-btn {
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-dim);
+  background: transparent;
+  border: 1px solid var(--panel-border);
+  border-radius: 20px;
+  padding: 6px 14px;
+  cursor: pointer;
+  transition: color 0.1s ease, border-color 0.1s ease;
+}
+
+.logout-btn:hover {
+  color: var(--text);
+  border-color: var(--text-dim);
+}
+
+/* ---------- subnav ---------- */
+
+.subnav {
+  position: sticky;
+  top: 65px;
+  z-index: 19;
+  display: flex;
+  gap: 4px;
+  padding: 8px 28px;
+  background: rgba(11, 13, 18, 0.85);
+  backdrop-filter: blur(10px);
+  border-bottom: 1px solid var(--panel-border);
+  font-size: 13px;
+  overflow-x: auto;
+}
+
+.subnav a {
+  color: var(--text-dim);
+  text-decoration: none;
+  padding: 6px 12px;
+  border-radius: 7px;
+  white-space: nowrap;
+  transition: background 0.15s, color 0.15s;
+}
+
+.subnav a:hover {
+  color: var(--text);
+  background: var(--panel);
+}
+
+.global-filter {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  white-space: nowrap;
+}
+
+.global-filter label {
+  color: var(--text-dim);
+  font-size: 12px;
+}
+
+/* ---------- layout ---------- */
+
+main {
+  padding: 24px 28px 48px;
+  max-width: 1280px;
+  margin: 0 auto;
+}
+
+/* ---------- cards ---------- */
+
+.cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: 14px;
+  margin-bottom: 28px;
+}
+
+.card {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  background: var(--panel);
+  border: 1px solid var(--panel-border);
+  border-radius: var(--radius);
+  padding: 16px 18px;
+}
+
+.card .icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  height: 38px;
+  border-radius: 9px;
+  background: var(--accent-dim);
+  color: var(--accent);
+  flex-shrink: 0;
+}
+
+.card .icon svg {
+  width: 19px;
+  height: 19px;
+}
+
+.card.warn .icon {
+  background: var(--warn-bg);
+  color: var(--warn);
+}
+
+.card.bad .icon {
+  background: var(--bad-bg);
+  color: var(--bad);
+}
+
+.card .meta {
+  min-width: 0;
+}
+
+.card .label {
+  font-size: 11.5px;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  font-weight: 600;
+}
+
+.card .value {
+  font-size: 24px;
+  font-weight: 700;
+  margin-top: 2px;
+  letter-spacing: -0.01em;
+  font-variant-numeric: tabular-nums;
+}
+
+.card .value.small {
+  font-size: 14px;
+  font-weight: 600;
+  font-family: var(--font-mono);
+  color: var(--text-dim);
+}
+
+.card.warn .value {
+  color: var(--warn);
+}
+
+.card.bad .value {
+  color: var(--bad);
+}
+
+.card.clickable {
+  cursor: pointer;
+  transition: border-color 0.15s, transform 0.15s;
+}
+
+.card.clickable:hover {
+  border-color: var(--accent);
+  transform: translateY(-1px);
+}
+
+/* ---------- sections ---------- */
+
+section {
+  scroll-margin-top: 115px;
+  background: var(--panel);
+  border: 1px solid var(--panel-border);
+  border-radius: var(--radius);
+  margin-bottom: 20px;
+  overflow: hidden;
+}
+
+section h2 {
+  font-size: 13.5px;
+  font-weight: 600;
+  margin: 0;
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--panel-border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  background: var(--panel-alt);
+}
+
+section h2 .title {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+}
+
+.section-icon {
+  display: flex;
+  color: var(--text-dim);
+}
+
+.section-icon svg {
+  width: 16px;
+  height: 16px;
+}
+
+.count-badge {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--accent);
+  background: var(--accent-dim);
+  padding: 1px 8px;
+  border-radius: 20px;
+}
+
+section h2 .controls {
+  display: flex;
+  gap: 8px;
+  font-weight: 400;
+  flex-wrap: wrap;
+}
+
+select, input[type="text"] {
+  background: var(--bg-elevated);
+  color: var(--text);
+  border: 1px solid var(--panel-border);
+  border-radius: 7px;
+  padding: 5px 10px;
+  font-size: 12px;
+  font-family: var(--font-sans);
+}
+
+select:focus, input[type="text"]:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-dim);
+}
+
+input[type="text"] {
+  width: 210px;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+/* ---------- tom-select (dropdown pencarian) ---------- */
+
+.ts-wrapper {
+  min-width: 140px;
+  font-size: 12px;
+  font-family: var(--font-sans);
+}
+
+/* !important di sini sengaja: tom-select punya varian selector khusus
+   untuk state input-active/dropdown-active (mis. .ts-wrapper.single
+   .input-active .ts-control) dengan spesifisitas LEBIH TINGGI dari
+   selector polos di atas, jadi override biasa kalah saat user mengetik
+   di kotak pencarian — hasilnya kotak jadi putih terang saat aktif. */
+.ts-wrapper.single .ts-control,
+.ts-wrapper.multi .ts-control,
+.ts-wrapper.single.input-active .ts-control,
+.ts-wrapper.single.dropdown-active .ts-control,
+.ts-wrapper.multi.input-active .ts-control,
+.ts-wrapper.multi.dropdown-active .ts-control {
+  background: var(--bg-elevated) !important;
+  color: var(--text) !important;
+  border: 1px solid var(--panel-border);
+  border-radius: 8px;
+  padding: 5px 30px 5px 12px;
+  box-shadow: none;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.ts-wrapper.single.focus .ts-control,
+.ts-wrapper.multi.focus .ts-control {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-dim);
+}
+
+/* Panah bawaan tom-select (segitiga border-trick) diganti chevron SVG
+   yang lebih halus, dengan animasi putar saat dropdown terbuka. */
+.ts-control:after {
+  content: '' !important;
+  position: absolute;
+  top: 50%;
+  right: 12px;
+  width: 10px;
+  height: 10px;
+  margin-top: -5px !important;
+  border: none !important;
+  background-color: var(--text-dim);
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E") center / contain no-repeat;
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E") center / contain no-repeat;
+  transition: transform 0.15s ease, background-color 0.15s ease;
+  pointer-events: none;
+}
+
+.ts-wrapper.dropdown-active .ts-control:after {
+  transform: rotate(180deg);
+  border: none !important;
+}
+
+.ts-wrapper.single.focus .ts-control:after,
+.ts-wrapper.multi.focus .ts-control:after {
+  background-color: var(--accent);
+}
+
+.ts-control input {
+  background: transparent !important;
+  color: var(--text) !important;
+  font-family: var(--font-sans);
+}
+
+.ts-control input::placeholder {
+  color: var(--text-faint);
+}
+
+.ts-wrapper .item {
+  color: var(--text);
+  font-weight: 500;
+}
+
+.ts-dropdown {
+  background: var(--panel);
+  border: 1px solid var(--panel-border);
+  border-radius: 10px;
+  color: var(--text);
+  z-index: 30;
+  margin-top: 6px;
+  overflow: hidden;
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.45), 0 4px 10px rgba(0, 0, 0, 0.3);
+}
+
+.ts-dropdown .ts-dropdown-content {
+  padding: 6px;
+}
+
+.ts-dropdown [data-selectable],
+.ts-dropdown .option {
+  color: var(--text);
+  padding: 7px 10px;
+  border-radius: 6px;
+  transition: background 0.1s ease;
+}
+
+/* Opsi "Semua X" (clear filter) selalu item pertama — beri pemisah
+   visual supaya kelihatan beda dari pilihan sungguhan di bawahnya. */
+.ts-dropdown [data-selectable]:first-child {
+  color: var(--text-dim);
+  border-bottom: 1px solid var(--panel-border);
+  border-radius: 0;
+  margin-bottom: 4px;
+  padding-bottom: 9px;
+}
+
+.ts-dropdown .active {
+  background: var(--accent-dim);
+  color: var(--text);
+  box-shadow: inset 2px 0 0 var(--accent);
+}
+
+.ts-dropdown [data-selectable].selected {
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.ts-dropdown [data-selectable].selected::after {
+  content: '✓';
+  float: right;
+}
+
+.ts-dropdown .no-results {
+  color: var(--text-dim);
+  padding: 7px 10px;
+}
+
+/* ---------- tables ---------- */
+
+.table-wrap {
+  overflow-x: auto;
+  overflow-y: auto;
+  max-height: 480px;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+/* table-layout:fixed memaksa lebar kolom mengikuti <colgroup>, bukan
+   melebar sesuai isi terpanjang -- itu yang sebelumnya bikin tabel lebih
+   lebar dari kontainer dan butuh scroll kiri-kanan. */
+.table-fixed {
+  table-layout: fixed;
+}
+
+th, td {
+  text-align: left;
+  padding: 9px 14px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  border-bottom: 1px solid var(--panel-border);
+}
+
+th {
+  position: sticky;
+  top: 0;
+  color: var(--text-faint);
+  font-weight: 600;
+  font-size: 10.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  background: var(--panel-alt);
+}
+
+.sortable-row th[data-key] {
+  cursor: pointer;
+  user-select: none;
+  transition: color 0.1s ease;
+}
+
+.sortable-row th[data-key]:hover {
+  color: var(--text);
+}
+
+.sortable-row th[data-key]::after {
+  content: '';
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  margin-left: 4px;
+  vertical-align: middle;
+  opacity: 0;
+  background-color: var(--accent);
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E") center / contain no-repeat;
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E") center / contain no-repeat;
+  transition: transform 0.1s ease;
+}
+
+.sortable-row th[data-key].sort-asc::after {
+  opacity: 1;
+  transform: rotate(180deg);
+}
+
+.sortable-row th[data-key].sort-desc::after {
+  opacity: 1;
+  transform: rotate(0deg);
+}
+
+td:first-child {
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+}
+
+tbody tr {
+  transition: background 0.1s;
+}
+
+tbody tr:hover {
+  background: rgba(255, 255, 255, 0.02);
+}
+
+tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.rssi-good { color: var(--good); font-weight: 600; }
+.rssi-warn { color: var(--warn); font-weight: 600; }
+.rssi-bad { color: var(--bad); font-weight: 600; }
+
+.empty {
+  padding: 32px;
+  text-align: center;
+  color: var(--text-dim);
+  font-size: 13px;
+}
+
+/* ---------- chart ---------- */
+
+#historyChart {
+  padding: 18px;
+}
+
+canvas {
+  max-height: 320px;
+}
+
+/* ---------- footer ---------- */
+
+footer {
+  text-align: center;
+  color: var(--text-faint);
+  font-size: 12px;
+  padding: 20px 0 4px;
+}
+
+footer code {
+  font-family: var(--font-mono);
+  color: var(--text-dim);
+}

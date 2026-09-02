@@ -1,0 +1,13 @@
+# Secrets
+.env
+**/.env
+poller/config.php
+poller/.local/
+
+# Dependencies
+node_modules/
+dashboard/node_modules/
+
+# OS
+.DS_Store
+**/.DS_Store
