@@ -1,20 +1,25 @@
 :root {
   color-scheme: dark;
-  --bg: #0b0d12;
-  --bg-elevated: #10131a;
-  --panel: #141821;
-  --panel-alt: #10131a;
-  --panel-border: #232833;
-  --text: #e8eaf0;
-  --text-dim: #8a91a3;
-  --text-faint: #565d6e;
-  --accent: #5b8def;
-  --accent-dim: rgba(91, 141, 239, 0.12);
-  --good: #34c78c;
-  --warn: #e3a33e;
-  --bad: #ec5f56;
-  --warn-bg: rgba(227, 163, 62, 0.1);
-  --bad-bg: rgba(236, 95, 86, 0.1);
+  /* Palet dark "lembut" -- sebelumnya bg nyaris hitam pekat (#0b0d12) +
+     teks putih terang (#e8eaf0) = kontras terlalu tinggi, bikin mata
+     cepat lelah saat menatap tabel lama. Bg dinaikkan ke abu gelap
+     hangat, teks utama diturunkan sedikit dari putih murni, warna
+     status (good/warn/bad) didesaturasi supaya tidak "neon". */
+  --bg: #1a1c22;
+  --bg-elevated: #22252d;
+  --panel: #23262e;
+  --panel-alt: #1e2129;
+  --panel-border: #34373f;
+  --text: #d7d9e2;
+  --text-dim: #9aa0b0;
+  --text-faint: #6b7180;
+  --accent: #6c93e0;
+  --accent-dim: rgba(108, 147, 224, 0.14);
+  --good: #4cb389;
+  --warn: #d9a154;
+  --bad: #d9736a;
+  --warn-bg: rgba(217, 161, 84, 0.12);
+  --bad-bg: rgba(217, 115, 106, 0.12);
   --radius: 12px;
   --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   --font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
@@ -42,7 +47,7 @@ header {
   align-items: center;
   justify-content: space-between;
   padding: 14px 28px;
-  background: rgba(11, 13, 18, 0.85);
+  background: rgba(26, 28, 34, 0.85);
   backdrop-filter: blur(10px);
   border-bottom: 1px solid var(--panel-border);
 }
@@ -147,7 +152,7 @@ header {
   display: flex;
   gap: 4px;
   padding: 8px 28px;
-  background: rgba(11, 13, 18, 0.85);
+  background: rgba(26, 28, 34, 0.85);
   backdrop-filter: blur(10px);
   border-bottom: 1px solid var(--panel-border);
   font-size: 13px;
@@ -354,8 +359,61 @@ select:focus, input[type="text"]:focus {
 }
 
 input[type="text"] {
-  width: 210px;
   transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+/* ---------- search box (ikon kaca pembesar + tombol clear) ---------- */
+
+.search-box {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
+
+.search-box .search-icon {
+  position: absolute;
+  left: 9px;
+  width: 13px;
+  height: 13px;
+  color: var(--text-faint);
+  pointer-events: none;
+}
+
+.search-box input[type="text"] {
+  width: 220px;
+  padding-left: 28px;
+  padding-right: 26px;
+}
+
+.search-clear {
+  position: absolute;
+  right: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: var(--panel-border);
+  color: var(--text-dim);
+  font-size: 13px;
+  line-height: 1;
+  cursor: pointer;
+  transition: background 0.1s ease, color 0.1s ease;
+}
+
+.search-clear:hover {
+  background: var(--accent);
+  color: #fff;
+}
+
+mark {
+  background: var(--accent-dim);
+  color: var(--accent);
+  border-radius: 3px;
+  padding: 0 1px;
 }
 
 /* ---------- tom-select (dropdown pencarian) ---------- */

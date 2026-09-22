@@ -98,6 +98,11 @@
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="9" width="20" height="6" rx="1.5" /><path d="M6 15v2M18 15v2M9 9V7a3 3 0 0 1 6 0v2" /></svg>
         </span>Per Access Point</span>
         <span class="controls">
+          <span class="search-box">
+            <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7" /><path d="m21 21-4.3-4.3" /></svg>
+            <input type="text" id="ap-filter-search" placeholder="cari site / AP / vendor" />
+            <button type="button" class="search-clear" id="ap-filter-search-clear" title="Bersihkan pencarian" hidden>&times;</button>
+          </span>
           <select id="ap-filter-site"><option value="">Semua Site</option></select>
           <select id="ap-filter-band"><option value="">Semua Band</option></select>
         </span>
@@ -148,7 +153,11 @@
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M23 21v-2a4 4 0 0 0-3-3.87" /><path d="M16 3.13a4 4 0 0 1 0 7.75" /></svg>
         </span>Client Live <span class="count-badge" id="client-count">0</span></span>
         <span class="controls">
-          <input type="text" id="client-filter-search" placeholder="cari MAC / username / AP / SSID" />
+          <span class="search-box">
+            <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7" /><path d="m21 21-4.3-4.3" /></svg>
+            <input type="text" id="client-filter-search" placeholder="cari MAC / username / site / AP / SSID" />
+            <button type="button" class="search-clear" id="client-filter-search-clear" title="Bersihkan pencarian" hidden>&times;</button>
+          </span>
           <select id="client-filter-site"><option value="">Semua Site</option></select>
           <select id="client-filter-band"><option value="">Semua Band</option></select>
           <select id="client-filter-signal">

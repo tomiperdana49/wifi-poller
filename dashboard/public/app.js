@@ -69,6 +69,32 @@ function initSortableHeaders() {
 
 const $ = (id) => document.getElementById(id);
 
+// Data bisa sampai ribuan baris (mis. 4800 client) -- render ulang tabel
+// di tiap keystroke terasa berat/lag di mesin biasa. Debounce kecil ini
+// cukup untuk bikin ketikan tetap responsif secara visual tanpa
+// menunda hasil pencarian secara terasa.
+function debounce(fn, wait) {
+  let t;
+  return (...args) => {
+    clearTimeout(t);
+    t = setTimeout(() => fn(...args), wait);
+  };
+}
+
+function escapeRegExp(s) {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+// Bungkus bagian teks yang cocok dengan query pencarian aktif pakai
+// <mark>, supaya user langsung lihat KENAPA baris itu muncul di hasil
+// (mis. cocok di SSID, bukan di MAC). Jalan di atas string yang sudah
+// di-escape HTML (esc()), jadi aman dari XSS lewat data server.
+function highlight(escapedText, rawQuery) {
+  if (!rawQuery) return escapedText;
+  const q = escapeRegExp(esc(rawQuery));
+  return escapedText.replace(new RegExp(`(${q})`, 'ig'), '<mark>$1</mark>');
+}
+
 // Tom Select membungkus <select> asli dengan kotak pencarian, sambil tetap
 // menjaga elemen <select> aslinya sinkron (value + event 'change') — jadi
 // semua addEventListener('change', ...) di bawah tetap bekerja tanpa ubah.
@@ -137,14 +163,19 @@ function globalVendor() {
 
 function filteredAps() {
   const vendor = globalVendor();
+  const search = $('ap-filter-search').value.trim().toLowerCase();
   const site = $('ap-filter-site').value;
   const band = $('ap-filter-band').value;
-  const rows = state.aps.filter(
-    (r) =>
-      (!vendor || r.vendor === vendor) &&
-      (!site || r.site === site) &&
-      (!band || r.band === band)
-  );
+  const rows = state.aps.filter((r) => {
+    if (vendor && r.vendor !== vendor) return false;
+    if (site && r.site !== site) return false;
+    if (band && r.band !== band) return false;
+    if (search) {
+      const hay = `${r.site} ${r.ap_name} ${r.vendor} ${r.band ?? ''}`.toLowerCase();
+      if (!hay.includes(search)) return false;
+    }
+    return true;
+  });
   return sortRows(rows, state.apSort);
 }
 
@@ -160,7 +191,7 @@ function filteredClients() {
     if (band && r.band !== band) return false;
     if (signal && signalBucket(r.rssi) !== signal) return false;
     if (search) {
-      const hay = `${r.client_mac} ${r.username ?? ''} ${r.ap_name} ${r.ssid ?? ''}`.toLowerCase();
+      const hay = `${r.client_mac} ${r.username ?? ''} ${r.site} ${r.ap_name} ${r.ssid ?? ''}`.toLowerCase();
       if (!hay.includes(search)) return false;
     }
     return true;
@@ -179,12 +210,18 @@ function renderOverview(o) {
 
 function renderApsTable(rows) {
   const tbody = $('ap-table');
-  $('ap-empty').hidden = rows.length > 0;
+  const query = $('ap-filter-search').value.trim();
+  const empty = $('ap-empty');
+  empty.hidden = rows.length > 0;
+  empty.textContent = query && state.aps.length > 0
+    ? `Tidak ada AP cocok untuk "${query}".`
+    : 'Belum ada data.';
+  const h = (v) => highlight(esc(v), query);
   tbody.innerHTML = rows
     .map(
       (r) => `<tr>
-        <td>${esc(r.site)}</td><td>${esc(r.ap_name)}</td><td>${esc(r.band ?? '-')}</td>
-        <td>${esc(r.vendor)}</td><td>${r.clients}</td>
+        <td>${h(r.site)}</td><td>${h(r.ap_name)}</td><td>${esc(r.band ?? '-')}</td>
+        <td>${h(r.vendor)}</td><td>${r.clients}</td>
         <td class="${rssiClass(r.avg_rssi)}">${r.avg_rssi ?? '-'}</td>
         <td class="${rssiClass(r.min_rssi)}">${r.min_rssi ?? '-'}</td>
         <td>${r.lemah ?? 0}</td><td>${r.sangat_lemah ?? 0}</td>
@@ -196,12 +233,18 @@ function renderApsTable(rows) {
 function renderClientsTable(rows) {
   $('client-count').textContent = `${rows.length}/${state.clients.length}`;
   const tbody = $('client-table');
-  $('client-empty').hidden = rows.length > 0;
+  const query = $('client-filter-search').value.trim();
+  const empty = $('client-empty');
+  empty.hidden = rows.length > 0;
+  empty.textContent = query && state.clients.length > 0
+    ? `Tidak ada client cocok untuk "${query}".`
+    : 'Belum ada client.';
+  const h = (v) => highlight(esc(v), query);
   tbody.innerHTML = rows
     .map(
       (r) => `<tr>
-        <td>${esc(r.client_mac)}</td><td>${esc(r.username ?? '-')}</td>
-        <td>${esc(r.site)}</td><td>${esc(r.ap_name)}</td><td>${esc(r.ssid ?? '-')}</td>
+        <td>${h(r.client_mac)}</td><td>${h(r.username ?? '-')}</td>
+        <td>${h(r.site)}</td><td>${h(r.ap_name)}</td><td>${h(r.ssid ?? '-')}</td>
         <td>${esc(r.band ?? '-')}</td><td>${esc(r.vendor)}</td>
         <td class="${rssiClass(r.rssi)}">${r.rssi ?? '-'}</td>
         <td>${r.snr ?? '-'}</td>
@@ -262,11 +305,31 @@ function showSignalFilter(bucket) {
 
 function resetClientFilters() {
   $('client-filter-search').value = '';
+  $('client-filter-search-clear').hidden = true;
   selects['client-filter-site'].setValue('', true);
   selects['client-filter-band'].setValue('', true);
   selects['client-filter-signal'].setValue('', true);
   applyFilters();
   $('client-table').closest('section').scrollIntoView({ behavior: 'auto', block: 'start' });
+}
+
+// Hubungkan satu kotak pencarian teks: toggle tombol "x" saat ada isi,
+// filter di-debounce supaya ketikan cepat tidak memicu render tabel
+// besar berkali-kali, dan tombol "x" fokus balik ke input setelah clear.
+function wireSearchBox(inputId, clearId, onChange) {
+  const input = $(inputId);
+  const clear = $(clearId);
+  const debounced = debounce(onChange, 150);
+  input.addEventListener('input', () => {
+    clear.hidden = input.value.length === 0;
+    debounced();
+  });
+  clear.addEventListener('click', () => {
+    input.value = '';
+    clear.hidden = true;
+    input.focus();
+    onChange();
+  });
 }
 
 function scrollToApTable() {
@@ -395,7 +458,8 @@ $('hist-hours').addEventListener('change', loadHistory);
 $('global-filter-vendor').addEventListener('change', applyFilters);
 $('ap-filter-site').addEventListener('change', applyFilters);
 $('ap-filter-band').addEventListener('change', applyFilters);
-$('client-filter-search').addEventListener('input', applyFilters);
+wireSearchBox('ap-filter-search', 'ap-filter-search-clear', applyFilters);
+wireSearchBox('client-filter-search', 'client-filter-search-clear', applyFilters);
 $('client-filter-site').addEventListener('change', applyFilters);
 $('client-filter-band').addEventListener('change', applyFilters);
 $('client-filter-signal').addEventListener('change', applyFilters);
