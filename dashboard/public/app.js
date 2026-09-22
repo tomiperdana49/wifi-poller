@@ -9,15 +9,19 @@ let chart = null;
 const state = {
   clients: [],
   aps: [],
+  problemAps: [],
   overview: null,
   // sort: null berarti pakai urutan asli dari query (site,ap_name / rssi
-  // ASC) -- baru dipakai kalau user klik salah satu header kolom.
+  // ASC, atau utk problem-aps: paling parah dulu) -- baru dipakai kalau
+  // user klik salah satu header kolom.
   apSort: null,
   clientSort: null,
+  problemSort: null,
 };
 
 const NUMERIC_KEYS = new Set([
   'clients', 'avg_rssi', 'min_rssi', 'lemah', 'sangat_lemah', 'rssi', 'snr',
+  'jam_terpantau', 'jam_bermasalah', 'pct_jam_bermasalah', 'avg_pct_sangat_lemah',
 ]);
 
 function sortRows(rows, sort) {
@@ -37,20 +41,34 @@ function sortRows(rows, sort) {
   });
 }
 
+// Tiga tabel bisa disortir header-nya (AP, Client Live, AP Bermasalah).
+// Tabel terakhir datanya bukan dari snapshot WS (state.aps/clients) tapi
+// hasil fetch periodik sendiri, jadi rerender-nya beda: bukan
+// applyFilters() melainkan render ulang dari cache filteredProblemAps().
+const SORT_TARGETS = {
+  ap: { stateKey: 'apSort', sectionId: 'section-aps', rerender: () => applyFilters() },
+  client: { stateKey: 'clientSort', sectionId: 'section-clients', rerender: () => applyFilters() },
+  problem: {
+    stateKey: 'problemSort',
+    sectionId: 'section-problem-aps',
+    rerender: () => renderProblemTable(filteredProblemAps()),
+  },
+};
+
 function toggleSort(which, key) {
-  const stateKey = which === 'ap' ? 'apSort' : 'clientSort';
-  const current = state[stateKey];
-  state[stateKey] = current && current.key === key
+  const t = SORT_TARGETS[which];
+  const current = state[t.stateKey];
+  state[t.stateKey] = current && current.key === key
     ? { key, dir: -current.dir }
     : { key, dir: 1 };
   updateSortIndicators(which);
-  applyFilters();
+  t.rerender();
 }
 
 function updateSortIndicators(which) {
-  const sectionId = which === 'ap' ? 'section-aps' : 'section-clients';
-  const sort = which === 'ap' ? state.apSort : state.clientSort;
-  document.querySelectorAll(`#${sectionId} th[data-key]`).forEach((th) => {
+  const t = SORT_TARGETS[which];
+  const sort = state[t.stateKey];
+  document.querySelectorAll(`#${t.sectionId} th[data-key]`).forEach((th) => {
     th.classList.remove('sort-asc', 'sort-desc');
     if (sort && th.dataset.key === sort.key) {
       th.classList.add(sort.dir === 1 ? 'sort-asc' : 'sort-desc');
@@ -59,12 +77,12 @@ function updateSortIndicators(which) {
 }
 
 function initSortableHeaders() {
-  document.querySelectorAll('#section-aps th[data-key]').forEach((th) => {
-    th.addEventListener('click', () => toggleSort('ap', th.dataset.key));
-  });
-  document.querySelectorAll('#section-clients th[data-key]').forEach((th) => {
-    th.addEventListener('click', () => toggleSort('client', th.dataset.key));
-  });
+  for (const which of Object.keys(SORT_TARGETS)) {
+    const sectionId = SORT_TARGETS[which].sectionId;
+    document.querySelectorAll(`#${sectionId} th[data-key]`).forEach((th) => {
+      th.addEventListener('click', () => toggleSort(which, th.dataset.key));
+    });
+  }
 }
 
 const $ = (id) => document.getElementById(id);
@@ -106,6 +124,7 @@ function initSelects() {
     'ap-filter-site', 'ap-filter-band',
     'client-filter-site', 'client-filter-band', 'client-filter-signal',
     'hist-ap', 'hist-hours',
+    'problem-filter-site', 'problem-filter-band', 'problem-hours',
   ];
   for (const id of ids) {
     selects[id] = new TomSelect(`#${id}`, {
@@ -199,6 +218,23 @@ function filteredClients() {
   return sortRows(rows, state.clientSort);
 }
 
+// state.problemAps datang dari /api/problem-aps utk rentang waktu yang
+// sedang dipilih (di-refetch tiap rentang berubah, lihat loadProblemAps).
+// Filter site/band/vendor di sini murni client-side supaya ganti filter
+// tidak perlu round-trip lagi ke server.
+function filteredProblemAps() {
+  const vendor = globalVendor();
+  const site = $('problem-filter-site').value;
+  const band = $('problem-filter-band').value;
+  const rows = state.problemAps.filter(
+    (r) =>
+      (!vendor || r.vendor === vendor) &&
+      (!site || r.site === site) &&
+      (!band || r.band === band)
+  );
+  return sortRows(rows, state.problemSort);
+}
+
 function renderOverview(o) {
   if (!o) return;
   $('card-clients').textContent = o.clients ?? '-';
@@ -251,6 +287,33 @@ function renderClientsTable(rows) {
       </tr>`
     )
     .join('');
+}
+
+function renderProblemTable(rows) {
+  const tbody = $('problem-table');
+  const empty = $('problem-empty');
+  empty.hidden = rows.length > 0;
+  tbody.innerHTML = rows
+    .map(
+      (r) => `<tr>
+        <td>${esc(r.site)}</td><td>${esc(r.ap_name)}</td><td>${esc(r.band ?? '-')}</td>
+        <td>${esc(r.vendor)}</td>
+        <td>${r.jam_terpantau}</td><td>${r.jam_bermasalah}</td>
+        <td class="${pctSeverityClass(r.pct_jam_bermasalah)}">${r.pct_jam_bermasalah}%</td>
+        <td class="${pctSeverityClass(r.avg_pct_sangat_lemah)}">${r.avg_pct_sangat_lemah}%</td>
+      </tr>`
+    )
+    .join('');
+}
+
+// Reuse warna rssi-good/warn/bad (cuma nama class, bukan literal RSSI)
+// buat mewarnai persentase di tabel AP Bermasalah -- skemanya sama:
+// makin tinggi persentase makin parah.
+function pctSeverityClass(pct) {
+  if (pct == null) return '';
+  if (pct >= 50) return 'rssi-bad';
+  if (pct >= 15) return 'rssi-warn';
+  return 'rssi-good';
 }
 
 // Overview cards dihitung ulang di sisi client dari snapshot client-live
@@ -394,39 +457,70 @@ function toLocalInputValue(d) {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
-// Preset "custom" di dropdown hist-hours menampilkan dua input tanggal.
-// Saat pertama kali dipilih (input masih kosong), isi default 24 jam
-// terakhir supaya chart tidak kosong sambil user menyesuaikan rentangnya.
-function onHistPresetChange() {
-  const isCustom = $('hist-hours').value === 'custom';
-  $('hist-range').hidden = !isCustom;
-  if (isCustom && (!$('hist-from').value || !$('hist-to').value)) {
-    const now = new Date();
-    const from = new Date(now.getTime() - 24 * 60 * 60 * 1000);
-    $('hist-from').value = toLocalInputValue(from);
-    $('hist-to').value = toLocalInputValue(now);
+// Menghubungkan satu trio dropdown-preset + dua input datetime-local
+// (dipakai di "Tren Historis" dan "AP Bermasalah"). onChange dipanggil
+// tiap preset/tanggal berubah; params() mengembalikan URLSearchParams
+// berisi hours ATAU from+to, atau null kalau rentang custom belum lengkap
+// (caller lalu skip fetch, tidak nembak query dengan tanggal kosong).
+function initRangePicker(presetId, fromId, toId, rangeId, onChange) {
+  const presetEl = $(presetId);
+  const rangeEl = $(rangeId);
+  const fromEl = $(fromId);
+  const toEl = $(toId);
+
+  function sync() {
+    const isCustom = presetEl.value === 'custom';
+    rangeEl.hidden = !isCustom;
+    // Baru pertama kali masuk custom (input masih kosong) -- isi default
+    // 24 jam terakhir supaya tampilan tidak kosong sambil user menyesuaikan.
+    if (isCustom && (!fromEl.value || !toEl.value)) {
+      const now = new Date();
+      const from = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+      fromEl.value = toLocalInputValue(from);
+      toEl.value = toLocalInputValue(now);
+    }
+    onChange();
   }
-  loadHistory();
+
+  presetEl.addEventListener('change', sync);
+  fromEl.addEventListener('change', onChange);
+  toEl.addEventListener('change', onChange);
+
+  return {
+    params() {
+      const params = new URLSearchParams();
+      if (presetEl.value === 'custom') {
+        if (!fromEl.value || !toEl.value) return null;
+        params.set('from', fromEl.value);
+        params.set('to', toEl.value);
+      } else {
+        params.set('hours', presetEl.value);
+      }
+      return params;
+    },
+  };
 }
 
 async function loadHistory() {
+  const params = histRange.params();
+  if (!params) return;
   const ap = $('hist-ap').value;
-  const preset = $('hist-hours').value;
-  const params = new URLSearchParams();
-  if (preset === 'custom') {
-    const from = $('hist-from').value;
-    const to = $('hist-to').value;
-    // Rentang belum lengkap (user baru isi salah satu) -- tunggu, jangan
-    // fetch dulu supaya tidak nembak query dengan tanggal kosong.
-    if (!from || !to) return;
-    params.set('from', from);
-    params.set('to', to);
-  } else {
-    params.set('hours', preset);
-  }
   if (ap) params.set('ap', ap);
   const rows = await fetch(`/api/history?${params}`).then((r) => r.json());
   renderChart(rows);
+}
+
+// AP Bermasalah: fetch ulang cuma saat rentang waktu berubah (query
+// wifi_hourly beda periode). Filter site/band/vendor tidak perlu fetch
+// ulang -- cukup filteredProblemAps() di sisi client, lihat komentarnya.
+async function loadProblemAps() {
+  const params = problemRange.params();
+  if (!params) return;
+  const rows = await fetch(`/api/problem-aps?${params}`).then((r) => r.json());
+  state.problemAps = rows;
+  syncOptions('problem-filter-site', rows.map((r) => r.site), 'Semua Site');
+  syncOptions('problem-filter-band', rows.map((r) => r.band), 'Semua Band');
+  renderProblemTable(filteredProblemAps());
 }
 
 function renderChart(rows) {
@@ -485,12 +579,18 @@ function renderChart(rows) {
   });
 }
 
-$('hist-ap').addEventListener('change', loadHistory);
-$('hist-hours').addEventListener('change', onHistPresetChange);
-$('hist-from').addEventListener('change', loadHistory);
-$('hist-to').addEventListener('change', loadHistory);
+const histRange = initRangePicker('hist-hours', 'hist-from', 'hist-to', 'hist-range', loadHistory);
+const problemRange = initRangePicker('problem-hours', 'problem-from', 'problem-to', 'problem-range', loadProblemAps);
 
-$('global-filter-vendor').addEventListener('change', applyFilters);
+$('hist-ap').addEventListener('change', loadHistory);
+
+$('problem-filter-site').addEventListener('change', () => renderProblemTable(filteredProblemAps()));
+$('problem-filter-band').addEventListener('change', () => renderProblemTable(filteredProblemAps()));
+
+$('global-filter-vendor').addEventListener('change', () => {
+  applyFilters();
+  renderProblemTable(filteredProblemAps());
+});
 $('ap-filter-site').addEventListener('change', applyFilters);
 $('ap-filter-band').addEventListener('change', applyFilters);
 wireSearchBox('ap-filter-search', 'ap-filter-search-clear', applyFilters);
@@ -508,4 +608,5 @@ initSelects();
 initSortableHeaders();
 loadInitial();
 loadApList().then(loadHistory);
+loadProblemAps();
 connectWs();

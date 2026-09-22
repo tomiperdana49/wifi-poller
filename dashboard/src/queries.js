@@ -91,6 +91,56 @@ async function history({ site, apName, hours, from, to }) {
   return rows;
 }
 
+// Ranking AP yang "sering" sinyal sangat lemah dalam suatu periode --
+// beda dari apSummary() yang cuma snapshot siklus poll terakhir. Dipakai
+// buat cari AP yang perlu ditambah / dipindah, bukan cuma yang lagi jelek
+// saat ini. jam_bermasalah = berapa jam (dari jam yang punya data) yang
+// punya >0% client dengan sinyal sangat lemah; avg_pct_sangat_lemah
+// dibobot per jumlah sample tiap jam supaya jam sepi tidak menyamai
+// bobotnya dengan jam ramai.
+async function problemAps({ hours, from, to, site, band, vendor }) {
+  const params = [];
+  const conditions = [];
+  if (from && to) {
+    conditions.push('hour_ts >= ?', 'hour_ts <= ?');
+    params.push(normalizeDatetime(from), normalizeDatetime(to));
+  } else {
+    conditions.push('hour_ts >= NOW() - INTERVAL ? HOUR');
+    params.push(Number(hours) > 0 ? Number(hours) : 72);
+  }
+  if (site) {
+    conditions.push('site = ?');
+    params.push(site);
+  }
+  if (band) {
+    conditions.push('band = ?');
+    params.push(band);
+  }
+  if (vendor) {
+    conditions.push('vendor = ?');
+    params.push(vendor);
+  }
+  const sql = `SELECT vendor, site, ap_name, band,
+                      COUNT(*)                                            AS jam_terpantau,
+                      SUM(pct_sangat_lemah > 0)                           AS jam_bermasalah,
+                      ROUND(SUM(pct_sangat_lemah * samples) / NULLIF(SUM(samples), 0), 1)
+                                                                           AS avg_pct_sangat_lemah,
+                      MAX(pct_sangat_lemah)                               AS max_pct_sangat_lemah,
+                      SUM(samples)                                        AS total_samples
+               FROM wifi_hourly
+               WHERE ${conditions.join(' AND ')}
+               GROUP BY vendor, site, ap_name, band
+               HAVING jam_bermasalah > 0
+               ORDER BY avg_pct_sangat_lemah DESC, jam_bermasalah DESC`;
+  const [rows] = await pool.query(sql, params);
+  return rows.map((r) => ({
+    ...r,
+    pct_jam_bermasalah: r.jam_terpantau
+      ? Math.round((r.jam_bermasalah / r.jam_terpantau) * 1000) / 10
+      : 0,
+  }));
+}
+
 async function apList() {
   const [rows] = await pool.query(
     `SELECT DISTINCT site, ap_name FROM wifi_hourly ORDER BY site, ap_name`
@@ -104,6 +154,7 @@ module.exports = {
   apSummary,
   overview,
   history,
+  problemAps,
   apList,
   LEMAH,
   SANGAT_LEMAH,

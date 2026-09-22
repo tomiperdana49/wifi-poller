@@ -57,6 +57,23 @@ router.get('/history', async (req, res, next) => {
   }
 });
 
+router.get('/problem-aps', async (req, res, next) => {
+  try {
+    res.json(
+      await q.problemAps({
+        site: req.query.site,
+        band: req.query.band,
+        vendor: req.query.vendor,
+        hours: req.query.hours,
+        from: req.query.from,
+        to: req.query.to,
+      })
+    );
+  } catch (e) {
+    next(e);
+  }
+});
+
 // eslint-disable-next-line no-unused-vars
 router.use((err, req, res, next) => {
   console.error(err);

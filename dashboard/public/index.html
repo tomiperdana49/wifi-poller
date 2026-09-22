@@ -35,6 +35,7 @@
 
   <nav class="subnav">
     <a href="#section-aps">Per Access Point</a>
+    <a href="#section-problem-aps">AP Bermasalah</a>
     <a href="#section-history">Tren Historis</a>
     <a href="#section-clients">Client Live</a>
     <span class="global-filter">
@@ -126,6 +127,51 @@
           <tbody id="ap-table"></tbody>
         </table>
         <div class="empty" id="ap-empty" hidden>Belum ada data.</div>
+      </div>
+    </section>
+
+    <section id="section-problem-aps">
+      <h2>
+        <span class="title"><span class="section-icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 9v4M12 17h.01" /><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L14.71 3.86a2 2 0 0 0-3.42 0Z" /></svg>
+        </span>AP Bermasalah <span class="hint">(sering sinyal sangat lemah)</span></span>
+        <span class="controls">
+          <select id="problem-filter-site"><option value="">Semua Site</option></select>
+          <select id="problem-filter-band"><option value="">Semua Band</option></select>
+          <select id="problem-hours">
+            <option value="24">24 jam</option>
+            <option value="72" selected>3 hari</option>
+            <option value="168">7 hari</option>
+            <option value="720">30 hari</option>
+            <option value="custom">Rentang kustom&hellip;</option>
+          </select>
+          <span class="hist-range" id="problem-range" hidden>
+            <input type="datetime-local" id="problem-from" />
+            <span class="range-sep">&ndash;</span>
+            <input type="datetime-local" id="problem-to" />
+          </span>
+        </span>
+      </h2>
+      <div class="table-wrap">
+        <table class="table-fixed">
+          <colgroup>
+            <col style="width:16%"><col style="width:18%"><col style="width:8%">
+            <col style="width:9%"><col style="width:12%"><col style="width:12%">
+            <col style="width:12%"><col style="width:13%">
+          </colgroup>
+          <thead>
+            <tr class="sortable-row">
+              <th data-key="site">Site</th><th data-key="ap_name">AP</th>
+              <th data-key="band">Band</th><th data-key="vendor">Vendor</th>
+              <th data-key="jam_terpantau">Jam Terpantau</th>
+              <th data-key="jam_bermasalah">Jam Bermasalah</th>
+              <th data-key="pct_jam_bermasalah">% Jam Bermasalah</th>
+              <th data-key="avg_pct_sangat_lemah">Rata² Sangat Lemah</th>
+            </tr>
+          </thead>
+          <tbody id="problem-table"></tbody>
+        </table>
+        <div class="empty" id="problem-empty" hidden>Tidak ada AP bermasalah pada rentang ini &mdash; bagus!</div>
       </div>
     </section>
 
