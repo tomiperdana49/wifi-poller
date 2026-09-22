@@ -611,6 +611,12 @@ th {
   text-transform: uppercase;
   letter-spacing: 0.05em;
   background: var(--panel-alt);
+  /* Header lebih rawan kepanjangan daripada isi sel (mis. "% Jam
+     Bermasalah") -- biarkan wrap ke baris kedua daripada terpotong "..."
+     seperti data td yang memang selalu satu baris. */
+  white-space: normal;
+  line-height: 1.35;
+  vertical-align: bottom;
 }
 
 .sortable-row th[data-key] {
