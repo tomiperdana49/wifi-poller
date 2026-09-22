@@ -387,10 +387,43 @@ async function loadApList() {
   inst.refreshOptions(false);
 }
 
+// Format Date lokal (bukan UTC) ke bentuk yang diterima <input
+// type="datetime-local">: "YYYY-MM-DDTHH:MM".
+function toLocalInputValue(d) {
+  const pad = (n) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+// Preset "custom" di dropdown hist-hours menampilkan dua input tanggal.
+// Saat pertama kali dipilih (input masih kosong), isi default 24 jam
+// terakhir supaya chart tidak kosong sambil user menyesuaikan rentangnya.
+function onHistPresetChange() {
+  const isCustom = $('hist-hours').value === 'custom';
+  $('hist-range').hidden = !isCustom;
+  if (isCustom && (!$('hist-from').value || !$('hist-to').value)) {
+    const now = new Date();
+    const from = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+    $('hist-from').value = toLocalInputValue(from);
+    $('hist-to').value = toLocalInputValue(now);
+  }
+  loadHistory();
+}
+
 async function loadHistory() {
   const ap = $('hist-ap').value;
-  const hours = $('hist-hours').value;
-  const params = new URLSearchParams({ hours });
+  const preset = $('hist-hours').value;
+  const params = new URLSearchParams();
+  if (preset === 'custom') {
+    const from = $('hist-from').value;
+    const to = $('hist-to').value;
+    // Rentang belum lengkap (user baru isi salah satu) -- tunggu, jangan
+    // fetch dulu supaya tidak nembak query dengan tanggal kosong.
+    if (!from || !to) return;
+    params.set('from', from);
+    params.set('to', to);
+  } else {
+    params.set('hours', preset);
+  }
   if (ap) params.set('ap', ap);
   const rows = await fetch(`/api/history?${params}`).then((r) => r.json());
   renderChart(rows);
@@ -453,7 +486,9 @@ function renderChart(rows) {
 }
 
 $('hist-ap').addEventListener('change', loadHistory);
-$('hist-hours').addEventListener('change', loadHistory);
+$('hist-hours').addEventListener('change', onHistPresetChange);
+$('hist-from').addEventListener('change', loadHistory);
+$('hist-to').addEventListener('change', loadHistory);
 
 $('global-filter-vendor').addEventListener('change', applyFilters);
 $('ap-filter-site').addEventListener('change', applyFilters);

@@ -48,6 +48,8 @@ router.get('/history', async (req, res, next) => {
         site: req.query.site,
         apName: req.query.ap,
         hours: req.query.hours,
+        from: req.query.from,
+        to: req.query.to,
       })
     );
   } catch (e) {

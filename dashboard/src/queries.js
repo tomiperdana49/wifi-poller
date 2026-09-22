@@ -56,21 +56,37 @@ async function overview() {
   return row;
 }
 
-async function history({ site, apName, hours }) {
-  const params = [Number(hours) > 0 ? Number(hours) : 24];
-  let sql = `SELECT hour_ts, vendor, site, ap_name, band, samples, clients_unik,
-                    avg_rssi, min_rssi, pct_lemah, pct_sangat_lemah
-             FROM wifi_hourly
-             WHERE hour_ts >= NOW() - INTERVAL ? HOUR`;
+// <input type="datetime-local"> mengirim "2026-09-10T08:00" -- MySQL/MariaDB
+// mengharapkan literal DATETIME dengan spasi, bukan 'T'.
+function normalizeDatetime(s) {
+  return String(s).replace('T', ' ');
+}
+
+async function history({ site, apName, hours, from, to }) {
+  const params = [];
+  const conditions = [];
+  // Rentang kustom (from+to) menang kalau keduanya diisi; kalau cuma
+  // salah satu atau tidak ada, fallback ke preset "N jam terakhir".
+  if (from && to) {
+    conditions.push('hour_ts >= ?', 'hour_ts <= ?');
+    params.push(normalizeDatetime(from), normalizeDatetime(to));
+  } else {
+    conditions.push('hour_ts >= NOW() - INTERVAL ? HOUR');
+    params.push(Number(hours) > 0 ? Number(hours) : 24);
+  }
   if (site) {
-    sql += ' AND site = ?';
+    conditions.push('site = ?');
     params.push(site);
   }
   if (apName) {
-    sql += ' AND ap_name = ?';
+    conditions.push('ap_name = ?');
     params.push(apName);
   }
-  sql += ' ORDER BY hour_ts';
+  const sql = `SELECT hour_ts, vendor, site, ap_name, band, samples, clients_unik,
+                      avg_rssi, min_rssi, pct_lemah, pct_sangat_lemah
+               FROM wifi_hourly
+               WHERE ${conditions.join(' AND ')}
+               ORDER BY hour_ts`;
   const [rows] = await pool.query(sql, params);
   return rows;
 }

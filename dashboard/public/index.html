@@ -141,7 +141,13 @@
             <option value="24" selected>24 jam</option>
             <option value="72">3 hari</option>
             <option value="168">7 hari</option>
+            <option value="custom">Rentang kustom&hellip;</option>
           </select>
+          <span class="hist-range" id="hist-range" hidden>
+            <input type="datetime-local" id="hist-from" />
+            <span class="range-sep">&ndash;</span>
+            <input type="datetime-local" id="hist-to" />
+          </span>
         </span>
       </h2>
       <div id="historyChart"><canvas id="chart"></canvas></div>
