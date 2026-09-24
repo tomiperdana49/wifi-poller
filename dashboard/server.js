@@ -11,6 +11,7 @@ const { WebSocketServer } = require('ws');
 
 const apiRouter = require('./src/routes/api');
 const { startBroadcaster } = require('./src/broadcaster');
+const q = require('./src/queries');
 
 const PORT = process.env.PORT || 3000;
 
@@ -68,6 +69,27 @@ app.post('/login', async (req, res) => {
 
 app.post('/logout', (req, res) => {
   req.session.destroy(() => res.redirect('/login'));
+});
+
+// ---- Health check publik (tanpa login) untuk uptime monitor ----
+// Sengaja minimal: tidak membocorkan nama controller/site, cuma status
+// agregat. HTTP 503 kalau data terlambat atau ada controller gagal, jadi
+// monitor eksternal (Uptime Kuma, dsb.) cukup cek status code.
+app.get('/healthz', async (req, res) => {
+  try {
+    const h = await q.health();
+    const failing = h.controllers.filter((c) => c.status !== 'ok').length;
+    const ok = !h.stale && failing === 0;
+    res.status(ok ? 200 : 503).json({
+      status: ok ? 'ok' : h.stale ? 'stale' : 'degraded',
+      data_age_s: h.data_age_s,
+      controllers_total: h.controllers.length,
+      controllers_failing: failing,
+    });
+  } catch (e) {
+    console.error('healthz error:', e.message);
+    res.status(503).json({ status: 'error' });
+  }
 });
 
 // ---- Semua route di bawah ini wajib login ----

@@ -235,12 +235,19 @@ function filteredProblemAps() {
   return sortRows(rows, state.problemSort);
 }
 
+const fmtNum = (n) => (n == null ? '-' : Number(n).toLocaleString('id-ID'));
+const pctOf = (n, total) => (total ? Math.round((n / total) * 1000) / 10 : 0);
+
 function renderOverview(o) {
   if (!o) return;
-  $('card-clients').textContent = o.clients ?? '-';
-  $('card-aps').textContent = o.aps ?? '-';
-  $('card-lemah').textContent = o.lemah ?? 0;
-  $('card-sangat-lemah').textContent = o.sangat_lemah ?? 0;
+  $('card-clients').textContent = fmtNum(o.clients);
+  $('card-aps').textContent = fmtNum(o.aps);
+  $('card-lemah').textContent = fmtNum(o.lemah ?? 0);
+  $('card-sangat-lemah').textContent = fmtNum(o.sangat_lemah ?? 0);
+  $('card-lemah-pct').textContent = `${pctOf(o.lemah, o.clients)}% dari client`;
+  $('card-sangat-lemah-pct').textContent = `${pctOf(o.sangat_lemah, o.clients)}% dari client`;
+  $('card-clients-sub').textContent = o.clients ? `rata² ${Math.round((o.clients / (o.aps || 1)) * 10) / 10} per AP` : '\u00a0';
+  $('card-aps-sub').textContent = o.sites ? `di ${fmtNum(o.sites)} site` : '\u00a0';
   $('card-ts').textContent = o.ts ?? '-';
 }
 
@@ -323,6 +330,7 @@ function pctSeverityClass(pct) {
 function computeOverview(vendor) {
   const rows = vendor ? state.clients.filter((r) => r.vendor === vendor) : state.clients;
   const apNames = new Set(rows.map((r) => r.ap_name));
+  const sites = new Set(rows.map((r) => r.site));
   let lemah = 0;
   let sangatLemah = 0;
   for (const r of rows) {
@@ -334,6 +342,7 @@ function computeOverview(vendor) {
     ts: state.overview ? state.overview.ts : null,
     clients: rows.length,
     aps: apNames.size,
+    sites: sites.size,
     lemah,
     sangat_lemah: sangatLemah,
   };
@@ -344,6 +353,7 @@ function computeOverview(vendor) {
 // filter user tidak hilang ketika snapshot baru datang.
 function applyFilters() {
   renderOverview(computeOverview(globalVendor()));
+  renderInsights();
   renderApsTable(filteredAps());
   renderClientsTable(filteredClients());
 }
@@ -426,6 +436,7 @@ function connectWs() {
     const msg = JSON.parse(evt.data);
     if (msg.type === 'snapshot') {
       updateData(msg.overview, msg.aps, msg.clients);
+      loadHealth();
     }
   };
 }
@@ -547,6 +558,11 @@ function renderChart(rows) {
 
   const ctx = $('chart').getContext('2d');
   if (chart) chart.destroy();
+  const accent = cssVar('--accent');
+  const good = cssVar('--good');
+  const fill = ctx.createLinearGradient(0, 0, 0, 320);
+  fill.addColorStop(0, withAlpha(accent, 0.28));
+  fill.addColorStop(1, withAlpha(accent, 0));
   chart = new Chart(ctx, {
     type: 'line',
     data: {
@@ -555,28 +571,353 @@ function renderChart(rows) {
         {
           label: 'Avg RSSI (dBm)',
           data: avgRssi,
-          borderColor: '#4f8cff',
+          borderColor: accent,
+          backgroundColor: fill,
+          fill: true,
           yAxisID: 'y',
-          tension: 0.2,
+          tension: 0.3,
+          borderWidth: 2,
+          pointRadius: 0,
+          pointHoverRadius: 4,
         },
         {
           label: 'Client unik',
           data: clients,
-          borderColor: '#33c17a',
+          borderColor: good,
+          backgroundColor: good,
           yAxisID: 'y1',
-          tension: 0.2,
+          tension: 0.3,
+          borderWidth: 2,
+          borderDash: [5, 4],
+          pointRadius: 0,
+          pointHoverRadius: 4,
         },
       ],
     },
     options: {
       responsive: true,
+      maintainAspectRatio: false,
       interaction: { mode: 'index', intersect: false },
+      plugins: {
+        legend: { position: 'top', align: 'end', labels: { usePointStyle: true, pointStyle: 'line', boxWidth: 24 } },
+        tooltip: {
+          backgroundColor: cssVar('--bg-elevated'),
+          borderColor: cssVar('--panel-border'),
+          borderWidth: 1,
+          titleColor: cssVar('--text'),
+          bodyColor: cssVar('--text-dim'),
+          padding: 10,
+          cornerRadius: 8,
+        },
+      },
       scales: {
+        x: { grid: { display: false }, ticks: { maxRotation: 0, autoSkipPadding: 24, callback(v) { return shortTs(this.getLabelForValue(v)); } } },
         y: { type: 'linear', position: 'left', title: { display: true, text: 'dBm' } },
         y1: { type: 'linear', position: 'right', title: { display: true, text: 'client' }, grid: { drawOnChartArea: false } },
       },
     },
   });
+}
+
+// ---------- tema & util tampilan ----------
+
+function cssVar(name) {
+  return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+}
+
+function withAlpha(hex, a) {
+  const m = /^#?([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i.exec(hex);
+  if (!m) return hex;
+  return `rgba(${parseInt(m[1], 16)}, ${parseInt(m[2], 16)}, ${parseInt(m[3], 16)}, ${a})`;
+}
+
+// "2026-09-24 15:00:00" -> "24/09 15:00" (label sumbu X chart historis).
+function shortTs(s) {
+  const m = /^\d{4}-(\d{2})-(\d{2})[ T](\d{2}:\d{2})/.exec(String(s));
+  return m ? `${m[2]}/${m[1]} ${m[3]}` : s;
+}
+
+function initChartTheme() {
+  Chart.defaults.color = cssVar('--text-dim');
+  Chart.defaults.borderColor = cssVar('--panel-border');
+  Chart.defaults.font.family = cssVar('--font-sans');
+  Chart.defaults.font.size = 11.5;
+}
+
+// "32 dtk lalu", "4 mnt lalu", "2 jam lalu".
+function fmtAge(sec) {
+  if (sec == null || Number.isNaN(sec)) return '-';
+  const s = Math.max(0, Math.round(sec));
+  if (s < 60) return `${s} dtk lalu`;
+  if (s < 3600) return `${Math.floor(s / 60)} mnt lalu`;
+  if (s < 86400) return `${Math.floor(s / 3600)} jam lalu`;
+  return `${Math.floor(s / 86400)} hari lalu`;
+}
+
+function fmtMs(ms) {
+  if (ms == null) return '-';
+  return ms < 1000 ? `${ms} ms` : `${(ms / 1000).toFixed(1).replace('.', ',')} dtk`;
+}
+
+// Sorot link subnav untuk section yang sedang dibaca: section terakhir
+// yang bagian atasnya sudah melewati bawah header sticky.
+function initNavHighlight() {
+  const links = [...document.querySelectorAll('.subnav a[href^="#"]')];
+  const targets = links.map((a) => [a, $(a.getAttribute('href').slice(1))]).filter(([, el]) => el);
+  let queued = false;
+  const update = () => {
+    queued = false;
+    let current = targets[0];
+    for (const t of targets) {
+      if (t[1].getBoundingClientRect().top <= 140) current = t;
+    }
+    // Sudah mentok bawah: section terakhir mungkin tidak pernah sampai ke
+    // atas layar, jadi anggap itu yang sedang dibaca.
+    if (window.innerHeight + window.scrollY >= document.body.scrollHeight - 4) {
+      current = targets[targets.length - 1];
+    }
+    links.forEach((a) => a.classList.toggle('active', a === current[0]));
+  };
+  window.addEventListener('scroll', () => {
+    if (!queued) {
+      queued = true;
+      requestAnimationFrame(update);
+    }
+  }, { passive: true });
+  update();
+}
+
+// ---------- ringkasan: distribusi sinyal & AP terburuk ----------
+
+function renderInsights() {
+  const vendor = globalVendor();
+  const rows = vendor ? state.clients.filter((r) => r.vendor === vendor) : state.clients;
+
+  const groups = new Map();
+  for (const r of rows) {
+    if (!groups.has(r.vendor)) groups.set(r.vendor, { ok: 0, lemah: 0, sangat_lemah: 0, total: 0 });
+    const g = groups.get(r.vendor);
+    const b = signalBucket(r.rssi);
+    if (b) g[b]++;
+    g.total++;
+  }
+  const list = [...groups.entries()].sort((a, b) => b[1].total - a[1].total);
+  if (list.length > 1) {
+    const all = { ok: 0, lemah: 0, sangat_lemah: 0, total: 0 };
+    for (const [, g] of list) for (const k of Object.keys(all)) all[k] += g[k];
+    list.push(['Total', all]);
+  }
+
+  $('signal-dist').innerHTML = list.length
+    ? list
+        .map(([name, g]) => {
+          const p = (n) => pctOf(n, g.total);
+          return `<div class="dist-row${name === 'Total' ? ' total' : ''}">
+            <div class="dist-head">
+              <span class="dist-name">${esc(name)}</span>
+              <span class="dist-count">${fmtNum(g.total)} client &middot; <b class="rssi-bad">${p(g.sangat_lemah)}%</b> sangat lemah</span>
+            </div>
+            <div class="stack-bar" role="img" aria-label="${esc(name)}: ${p(g.ok)}% baik, ${p(g.lemah)}% lemah, ${p(g.sangat_lemah)}% sangat lemah">
+              <span class="seg good" style="width:${p(g.ok)}%" title="Baik: ${fmtNum(g.ok)}"></span>
+              <span class="seg warn" style="width:${p(g.lemah)}%" title="Lemah: ${fmtNum(g.lemah)}"></span>
+              <span class="seg bad" style="width:${p(g.sangat_lemah)}%" title="Sangat lemah: ${fmtNum(g.sangat_lemah)}"></span>
+            </div>
+          </div>`;
+        })
+        .join('')
+    : '<div class="empty">Belum ada data.</div>';
+
+  // AP (digabung semua band) dengan porsi client sangat lemah tertinggi.
+  // Minimal 3 client supaya AP dengan 1 client jelek tidak mendominasi.
+  const aps = new Map();
+  for (const r of state.aps) {
+    if (vendor && r.vendor !== vendor) continue;
+    const key = `${r.site}\u0000${r.ap_name}`;
+    if (!aps.has(key)) aps.set(key, { site: r.site, ap_name: r.ap_name, vendor: r.vendor, clients: 0, bad: 0 });
+    const a = aps.get(key);
+    a.clients += Number(r.clients) || 0;
+    a.bad += Number(r.sangat_lemah) || 0;
+  }
+  const worst = [...aps.values()]
+    .filter((a) => a.clients >= 3 && a.bad > 0)
+    .map((a) => ({ ...a, pct: pctOf(a.bad, a.clients) }))
+    .sort((a, b) => b.pct - a.pct || b.bad - a.bad)
+    .slice(0, 6);
+
+  $('worst-empty').hidden = worst.length > 0;
+  $('worst-aps').innerHTML = worst
+    .map(
+      (a) => `<li data-ap="${esc(a.ap_name)}" title="Klik untuk cari AP ini di tabel">
+        <div class="worst-main">
+          <span class="worst-name">${esc(a.ap_name)}</span>
+          <span class="worst-site">${esc(a.site)} &middot; ${esc(a.vendor)}</span>
+        </div>
+        <div class="worst-meter"><span style="width:${Math.min(100, a.pct)}%"></span></div>
+        <div class="worst-val"><b>${a.pct}%</b><small>${a.bad}/${a.clients}</small></div>
+      </li>`
+    )
+    .join('');
+}
+
+$('worst-aps').addEventListener('click', (e) => {
+  const li = e.target.closest('li[data-ap]');
+  if (!li) return;
+  const input = $('ap-filter-search');
+  input.value = li.dataset.ap;
+  $('ap-filter-search-clear').hidden = false;
+  applyFilters();
+  scrollToApTable();
+});
+
+// ---------- status poller (health) ----------
+
+// age_s dari server dihitung saat fetch; ditambah waktu yang sudah lewat
+// sejak itu supaya label "x dtk lalu" terus berjalan walau poller macet
+// (justru saat itulah tidak ada snapshot WS baru yang memicu render).
+const healthState = { data: null, fetchedAt: 0 };
+
+async function loadHealth() {
+  try {
+    const res = await fetch('/api/health');
+    if (!res.ok) throw new Error(res.status);
+    healthState.data = await res.json();
+    healthState.fetchedAt = Date.now();
+    renderHealth();
+  } catch (e) {
+    console.error('health', e);
+  }
+}
+
+function elapsed() {
+  return (Date.now() - healthState.fetchedAt) / 1000;
+}
+
+const STATUS_LABEL = { ok: 'OK', error: 'Error', stale: 'Terlambat' };
+
+function sparkline(series, status) {
+  if (series.length < 2) return '<div class="spark empty-spark">belum cukup data</div>';
+  const w = 240;
+  const h = 44;
+  const max = Math.max(1, ...series.map((p) => p.clients));
+  const step = w / (series.length - 1);
+  const pts = series.map((p, i) => [i * step, h - 3 - (p.clients / max) * (h - 8)]);
+  const line = pts.map(([x, y], i) => `${i ? 'L' : 'M'}${x.toFixed(1)},${y.toFixed(1)}`).join('');
+  const area = `${line}L${w},${h}L0,${h}Z`;
+  const fails = series
+    .map((p, i) => (p.fails > 0 ? `<rect x="${(i * step - 1.5).toFixed(1)}" y="0" width="3" height="${h}" class="fail-mark"><title>${esc(p.t)}: ${p.fails} gagal</title></rect>` : ''))
+    .join('');
+  return `<svg class="spark ${status}" viewBox="0 0 ${w} ${h}" preserveAspectRatio="none" aria-hidden="true">
+    ${fails}<path d="${area}" class="area" /><path d="${line}" class="line" vector-effect="non-scaling-stroke" />
+  </svg>`;
+}
+
+function renderHealth() {
+  const h = healthState.data;
+  if (!h) return;
+
+  const grid = $('controller-grid');
+  const empty = $('health-empty');
+  const failing = h.controllers.filter((c) => c.status !== 'ok');
+
+  const overall = h.stale ? 'stale' : failing.length ? 'error' : h.available ? 'ok' : 'unknown';
+  const pill = $('health-overall');
+  pill.className = `status-pill ${overall}`;
+  pill.textContent = {
+    ok: 'Semua normal',
+    error: `${failing.length} controller bermasalah`,
+    stale: 'Data terlambat',
+    unknown: 'Belum aktif',
+  }[overall];
+
+  if (!h.available) {
+    grid.innerHTML = '';
+    empty.hidden = false;
+    empty.innerHTML = 'Pencatatan status poller belum aktif. Jalankan migration <code>poller/sql/001_poller_health.sql</code> di server.';
+  } else if (!h.controllers.length) {
+    grid.innerHTML = '';
+    empty.hidden = false;
+    empty.textContent = 'Belum ada catatan run dari poller. Tunggu satu siklus (±1 menit).';
+  } else {
+    empty.hidden = true;
+    grid.innerHTML = h.controllers
+      .map(
+        (c, i) => `<article class="ctrl ${c.status}">
+          <div class="ctrl-head">
+            <span class="status-pill ${c.status}">${STATUS_LABEL[c.status]}</span>
+            <span class="vendor-tag">${esc(c.type)}</span>
+          </div>
+          <div class="ctrl-name" title="${esc(c.label)}">${esc(c.label)}</div>
+          <div class="ctrl-value${c.status === 'stale' ? ' dim' : ''}" title="${c.status === 'stale' ? 'Jumlah dari run terakhir' : ''}">${c.status === 'error' ? '&ndash;' : fmtNum(c.clients)}<small>client</small></div>
+          ${sparkline(c.series, c.status)}
+          <dl class="ctrl-meta">
+            <div><dt>Run terakhir</dt><dd data-age-idx="${i}">${fmtAge(c.age_s + elapsed())}</dd></div>
+            <div><dt>Durasi</dt><dd>${fmtMs(c.duration_ms)}</dd></div>
+            <div><dt>Gagal 24j</dt><dd class="${c.fails_24h ? 'rssi-bad' : ''}">${fmtNum(c.fails_24h)}/${fmtNum(c.runs_24h)}</dd></div>
+          </dl>
+          ${c.status !== 'ok'
+            ? `<div class="ctrl-error">${c.error ? esc(c.error) : 'Tidak ada run baru.'}${c.last_ok_ts ? `<span>Terakhir sukses: ${esc(c.last_ok_ts)}</span>` : ''}</div>`
+            : ''}
+        </article>`
+      )
+      .join('');
+  }
+
+  const cy = h.cycle;
+  const c24 = h.cycle_24h;
+  const chips = [];
+  if (cy) {
+    // Siklus > 45 dtk mendekati batas cron 60 dtk -- siklus berikutnya
+    // bakal di-SKIP oleh lock file dan data jadi bolong.
+    const slow = cy.duration_ms > 45000;
+    chips.push(`<span class="chip ${slow ? 'warn' : ''}" title="Durasi siklus terakhir; batas aman < 60 dtk (interval cron)">Siklus <b>${fmtMs(cy.duration_ms)}</b></span>`);
+  }
+  if (c24 && c24.cycles) {
+    chips.push(`<span class="chip ${c24.bad_cycles ? 'bad' : ''}" title="Siklus dengan minimal satu controller gagal, 24 jam terakhir">Siklus bermasalah 24j <b>${fmtNum(c24.bad_cycles)}/${fmtNum(c24.cycles)}</b></span>`);
+    if (c24.pct_resolved != null) {
+      chips.push(`<span class="chip ${c24.pct_resolved < 20 ? 'warn' : ''}" title="Persentase client yang username-nya ketemu di radacct">Username ter-resolve <b>${String(c24.pct_resolved).replace('.', ',')}%</b></span>`);
+    }
+  }
+  $('health-stats').innerHTML = chips.join('');
+
+  tickAges();
+}
+
+// Dipanggil tiap detik: perbarui semua label umur + banner + judul tab.
+function tickAges() {
+  const h = healthState.data;
+  let age = null;
+  if (h && h.data_age_s != null) age = h.data_age_s + elapsed();
+
+  const ageEl = $('card-age');
+  const box = $('card-ts-box');
+  ageEl.textContent = age == null ? '-' : fmtAge(age);
+  const stale = h && (age == null || age > h.stale_after_s);
+  box.classList.toggle('bad', !!stale);
+
+  if (h) {
+    document.querySelectorAll('[data-age-idx]').forEach((el) => {
+      const c = h.controllers[Number(el.dataset.ageIdx)];
+      if (c) el.textContent = fmtAge(c.age_s + elapsed());
+    });
+  }
+
+  const failing = h ? h.controllers.filter((c) => c.status !== 'ok').length : 0;
+  const banner = $('stale-banner');
+  if (stale) {
+    banner.hidden = false;
+    banner.className = 'alert-banner bad';
+    $('stale-banner-text').textContent = `Data terakhir masuk ${fmtAge(age)} — poller kemungkinan berhenti atau semua controller gagal.`;
+  } else if (failing) {
+    banner.hidden = false;
+    banner.className = 'alert-banner warn';
+    $('stale-banner-text').textContent = `${failing} controller gagal di-poll — data dari controller tersebut tidak ikut tampil.`;
+  } else {
+    banner.hidden = true;
+  }
+
+  const prefix = stale ? '⛔ ' : failing ? '⚠ ' : '';
+  const title = `${prefix}WiFi Poller Dashboard`;
+  if (document.title !== title) document.title = title;
 }
 
 const histRange = initRangePicker('hist-hours', 'hist-from', 'hist-to', 'hist-range', loadHistory);
@@ -603,10 +944,16 @@ $('card-lemah-box').addEventListener('click', () => showSignalFilter('lemah'));
 $('card-sangat-lemah-box').addEventListener('click', () => showSignalFilter('sangat_lemah'));
 $('card-clients-box').addEventListener('click', resetClientFilters);
 $('card-aps-box').addEventListener('click', scrollToApTable);
+$('card-ts-box').addEventListener('click', () => $('section-health').scrollIntoView({ behavior: 'auto', block: 'start' }));
 
+initChartTheme();
 initSelects();
 initSortableHeaders();
+initNavHighlight();
 loadInitial();
+loadHealth();
+setInterval(loadHealth, 30000);
+setInterval(tickAges, 1000);
 loadApList().then(loadHistory);
 loadProblemAps();
 connectWs();

@@ -35,6 +35,7 @@ return [
 
     'retensi_raw_hari'    => (int)$e('RETENSI_RAW_HARI', '14'),
     'retensi_hourly_hari' => (int)$e('RETENSI_HOURLY_HARI', '730'),
+    'retensi_health_hari' => (int)$e('RETENSI_HEALTH_HARI', '30'),
 
     'lock_file'  => $e('LOCK_FILE', '/var/lib/wifi-poller/poller.lock'),
     'token_dir'  => $e('TOKEN_DIR', '/var/lib/wifi-poller'),
@@ -51,16 +52,21 @@ return [
             'site_ids'      => EnvLoader::list($env, 'OMADA_SITE_IDS'),
             'verify_ssl'    => EnvLoader::bool($env, 'OMADA_VERIFY_SSL'),
         ],
-        [
-            'enabled'    => EnvLoader::bool($env, 'RUIJIE_ENABLED'),
+        // Multi-controller Ruijie: blok RUIJIE_* (Medan), RUIJIE_2_* (Jakarta),
+        // RUIJIE_3_* (Bali). Controller tanpa APP_ID/APP_SECRET dianggap
+        // nonaktif supaya tidak error tiap menit sebelum kredensial diisi.
+        ...array_map(fn(string $p) => [
+            'enabled'    => EnvLoader::bool($env, "{$p}_ENABLED")
+                            && $e("{$p}_APP_ID", '') !== ''
+                            && $e("{$p}_APP_SECRET", '') !== '',
             'type'       => 'ruijie',
-            'label'      => $e('RUIJIE_LABEL', 'ruijie-cloud'),
-            'base_url'   => $e('RUIJIE_BASE_URL', 'https://cloud-as.ruijienetworks.com'),
-            'app_id'     => $e('RUIJIE_APP_ID'),
-            'app_secret' => $e('RUIJIE_APP_SECRET'),
-            'group_ids'  => EnvLoader::list($env, 'RUIJIE_GROUP_IDS'),
-            'verify_ssl' => EnvLoader::bool($env, 'RUIJIE_VERIFY_SSL', true),
-        ],
+            'label'      => $e("{$p}_LABEL", strtolower(str_replace('_', '-', $p))),
+            'base_url'   => $e("{$p}_BASE_URL", 'https://cloud-as.ruijienetworks.com'),
+            'app_id'     => $e("{$p}_APP_ID"),
+            'app_secret' => $e("{$p}_APP_SECRET"),
+            'group_ids'  => EnvLoader::list($env, "{$p}_GROUP_IDS"),
+            'verify_ssl' => EnvLoader::bool($env, "{$p}_VERIFY_SSL", true),
+        ], ['RUIJIE', 'RUIJIE_2', 'RUIJIE_3']),
         [
             'enabled'    => EnvLoader::bool($env, 'UNIFI_ENABLED'),
             'type'       => 'unifi',

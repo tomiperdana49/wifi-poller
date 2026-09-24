@@ -21,6 +21,7 @@ require __DIR__ . '/src/RuijiePoller.php';
 require __DIR__ . '/src/UnifiPoller.php';
 require __DIR__ . '/src/UsernameResolver.php';
 require __DIR__ . '/src/SampleStore.php';
+require __DIR__ . '/src/HealthStore.php';
 
 $cfg     = require __DIR__ . '/config.php';
 date_default_timezone_set($cfg['timezone']);
@@ -49,6 +50,52 @@ if (!$dryRun) {
 $ts   = date('Y-m-d H:i:s');
 $mulai = microtime(true);
 
+/*
+ * Hasil siklus ini untuk panel "Status Poller" di dashboard. Diisi
+ * sepanjang jalan, ditulis ke DB di shutdown function -- bukan di
+ * finally -- karena exit() di tengah try (mis. "Tidak ada data") tidak
+ * menjalankan finally, sedangkan shutdown function tetap jalan, termasuk
+ * setelah FATAL. Gagal menulis health tidak boleh menggagalkan poller.
+ */
+$health = ['runs' => [], 'clients' => 0, 'resolved' => null, 'error' => null];
+
+if (!$dryRun) {
+    register_shutdown_function(function () use (&$health, $cfg, $ts, $mulai) {
+        $fatal = error_get_last();
+        if ($health['error'] === null && $fatal && in_array($fatal['type'], [E_ERROR, E_CORE_ERROR, E_COMPILE_ERROR], true)) {
+            $health['error'] = $fatal['message'];
+        }
+
+        $total = count($health['runs']);
+        $ok    = count(array_filter($health['runs'], fn($r) => $r['ok']));
+        $status = match (true) {
+            $health['error'] !== null || $ok === 0 => 'error',
+            $ok < $total                           => 'partial',
+            default                                => 'ok',
+        };
+
+        try {
+            $pdo = new PDO(
+                $cfg['db']['analytics_dsn'],
+                $cfg['db']['analytics_user'],
+                $cfg['db']['analytics_pass'],
+                [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]
+            );
+            (new HealthStore($pdo))->record($ts, $health['runs'], [
+                'status'            => $status,
+                'duration_ms'       => (int)round((microtime(true) - $mulai) * 1000),
+                'controllers_ok'    => $ok,
+                'controllers_total' => $total,
+                'clients'           => $health['clients'],
+                'resolved'          => $health['resolved'],
+                'error'             => $health['error'],
+            ]);
+        } catch (Throwable $e) {
+            logLine('WARN gagal simpan health: ' . $e->getMessage());
+        }
+    });
+}
+
 try {
     // ---- Ambil dari semua controller ----
     $semua = [];
@@ -73,14 +120,24 @@ try {
          * Satu controller gagal tidak boleh menjatuhkan yang lain.
          * Log errornya, lanjut ke controller berikutnya.
          */
+        $run = ['label' => $poller->label(), 'type' => $c['type'], 'ok' => false,
+                'clients' => 0, 'duration_ms' => 0, 'error' => null];
+        $t0  = microtime(true);
         try {
             $s = $poller->fetchClients();
             logLine(sprintf('%-24s %4d client', $poller->label(), count($s)));
             $semua = array_merge($semua, $s);
+            $run['ok']      = true;
+            $run['clients'] = count($s);
         } catch (Throwable $e) {
             logLine('ERROR ' . $poller->label() . ': ' . $e->getMessage());
+            $run['error'] = $e->getMessage();
         }
+        $run['duration_ms'] = (int)round((microtime(true) - $t0) * 1000);
+        $health['runs'][]   = $run;
     }
+
+    $health['clients'] = count($semua);
 
     if (!$semua) {
         logLine('Tidak ada data. Selesai.');
@@ -105,6 +162,7 @@ try {
     }
 
     $ketemu = count(array_filter($semua, fn($s) => $s->username !== null));
+    $health['resolved'] = $ketemu;
     logLine(sprintf(
         'username ter-resolve: %d/%d (%.0f%%)',
         $ketemu, count($semua), 100 * $ketemu / count($semua)
@@ -152,6 +210,7 @@ try {
 
 } catch (Throwable $e) {
     logLine('FATAL: ' . $e->getMessage());
+    $health['error'] = $e->getMessage();
     exit(1);
 } finally {
     if ($lock) {

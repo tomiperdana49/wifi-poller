@@ -9,6 +9,14 @@ router.get('/config', (req, res) => {
   res.json({ rssiLemah: q.LEMAH, rssiSangatLemah: q.SANGAT_LEMAH });
 });
 
+router.get('/health', async (req, res, next) => {
+  try {
+    res.json(await q.health());
+  } catch (e) {
+    next(e);
+  }
+});
+
 router.get('/overview', async (req, res, next) => {
   try {
     res.json(await q.overview());

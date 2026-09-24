@@ -56,5 +56,23 @@ $n2 = deleteBertahap(
     [':h' => (int)$cfg['retensi_hourly_hari']]
 );
 
+// Tabel health (sql/001_poller_health.sql) mungkin belum dibuat di
+// instalasi lama -- jangan sampai itu menggagalkan cleanup data utama.
+$n3 = 0;
+try {
+    $hariHealth = (int)($cfg['retensi_health_hari'] ?? 30);
+    foreach (['poller_controller_runs', 'poller_cycles'] as $tabel) {
+        $n3 += deleteBertahap(
+            $pdo,
+            "DELETE FROM $tabel
+             WHERE ts < DATE_SUB(NOW(), INTERVAL :h DAY)
+             LIMIT 50000",
+            [':h' => $hariHealth]
+        );
+    }
+} catch (PDOException $e) {
+    echo date('Y-m-d H:i:s') . "  WARN cleanup health: {$e->getMessage()}\n";
+}
+
 echo date('Y-m-d H:i:s')
-   . "  cleanup: $n1 raw, $n2 hourly dihapus\n";
+   . "  cleanup: $n1 raw, $n2 hourly, $n3 health dihapus\n";

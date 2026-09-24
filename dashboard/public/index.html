@@ -34,6 +34,8 @@
   </header>
 
   <nav class="subnav">
+    <a href="#section-health">Status Poller</a>
+    <a href="#section-insight">Ringkasan</a>
     <a href="#section-aps">Per Access Point</a>
     <a href="#section-problem-aps">AP Bermasalah</a>
     <a href="#section-history">Tren Historis</a>
@@ -45,6 +47,12 @@
   </nav>
 
   <main>
+    <div class="alert-banner" id="stale-banner" role="alert" hidden>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 9v4M12 17h.01" /><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L14.71 3.86a2 2 0 0 0-3.42 0Z" /></svg>
+      <span id="stale-banner-text"></span>
+      <a href="#section-health">Lihat status poller</a>
+    </div>
+
     <div class="cards">
       <div class="card clickable" id="card-clients-box" title="Klik untuk reset filter">
         <span class="icon" aria-hidden="true">
@@ -53,6 +61,7 @@
         <div class="meta">
           <div class="label">Client Aktif</div>
           <div class="value" id="card-clients">-</div>
+          <div class="sub" id="card-clients-sub">&nbsp;</div>
         </div>
       </div>
       <div class="card clickable" id="card-aps-box" title="Klik untuk lihat tabel AP">
@@ -62,6 +71,7 @@
         <div class="meta">
           <div class="label">AP Aktif</div>
           <div class="value" id="card-aps">-</div>
+          <div class="sub" id="card-aps-sub">&nbsp;</div>
         </div>
       </div>
       <div class="card warn clickable" id="card-lemah-box" title="Klik untuk lihat daftar client">
@@ -71,6 +81,7 @@
         <div class="meta">
           <div class="label">Sinyal Lemah</div>
           <div class="value" id="card-lemah">-</div>
+          <div class="sub" id="card-lemah-pct">&nbsp;</div>
         </div>
       </div>
       <div class="card bad clickable" id="card-sangat-lemah-box" title="Klik untuk lihat daftar client">
@@ -80,17 +91,55 @@
         <div class="meta">
           <div class="label">Sinyal Sangat Lemah</div>
           <div class="value" id="card-sangat-lemah">-</div>
+          <div class="sub" id="card-sangat-lemah-pct">&nbsp;</div>
         </div>
       </div>
-      <div class="card">
+      <div class="card clickable" id="card-ts-box" title="Klik untuk lihat status poller">
         <span class="icon" aria-hidden="true">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10" /><path d="M12 6v6l4 2" /></svg>
         </span>
         <div class="meta">
           <div class="label">Update Terakhir</div>
-          <div class="value small" id="card-ts">-</div>
+          <div class="value" id="card-age">-</div>
+          <div class="sub mono" id="card-ts">&nbsp;</div>
         </div>
       </div>
+    </div>
+
+    <section id="section-health">
+      <h2>
+        <span class="title"><span class="section-icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2" /></svg>
+        </span>Status Poller <span class="status-pill" id="health-overall">&hellip;</span></span>
+        <span class="health-stats" id="health-stats"></span>
+      </h2>
+      <div class="controller-grid" id="controller-grid"></div>
+      <div class="empty" id="health-empty" hidden></div>
+    </section>
+
+    <div class="insight-grid" id="section-insight">
+      <section>
+        <h2>
+          <span class="title"><span class="section-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12h4M3 6h10M3 18h14" /></svg>
+          </span>Distribusi Sinyal per Vendor</span>
+          <span class="legend">
+            <span><i class="sw good"></i>Baik</span>
+            <span><i class="sw warn"></i>Lemah</span>
+            <span><i class="sw bad"></i>Sangat lemah</span>
+          </span>
+        </h2>
+        <div class="dist-list" id="signal-dist"></div>
+      </section>
+      <section>
+        <h2>
+          <span class="title"><span class="section-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 9v4M12 17h.01" /><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L14.71 3.86a2 2 0 0 0-3.42 0Z" /></svg>
+          </span>AP Terburuk Saat Ini <span class="hint">(&ge;3 client, % sangat lemah)</span></span>
+        </h2>
+        <ol class="worst-list" id="worst-aps"></ol>
+        <div class="empty" id="worst-empty" hidden>Semua AP dalam kondisi baik.</div>
+      </section>
     </div>
 
     <section id="section-aps">
