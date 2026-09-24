@@ -169,6 +169,11 @@ function syncOptions(id, values, allLabel) {
   const current = inst.getValue();
   const unique = [...new Set(values)].filter(Boolean).sort();
 
+  // clear(true) dulu (silent, tanpa event change): clearOptions() sengaja
+  // mempertahankan opsi yang sedang terpilih beserta urutan lamanya, jadi
+  // tanpa ini opsi terpilih melompat ke paling atas daftar -- di atas
+  // "Semua X" -- setiap kali snapshot baru masuk.
+  inst.clear(true);
   inst.clearOptions();
   inst.addOption({ value: '', text: allLabel });
   for (const v of unique) inst.addOption({ value: v, text: v });

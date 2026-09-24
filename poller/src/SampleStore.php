@@ -20,6 +20,27 @@ final class SampleStore
 
         $total = 0;
 
+        // Satu siklus = satu transaksi. Tanpa ini tiap chunk langsung
+        // terlihat, dan dashboard (yang memantau MAX(ts)) mengambil snapshot
+        // setengah jadi di tengah insert -- vendor yang disimpan paling akhir
+        // (mis. UniFi) hilang dari tampilan sampai siklus berikutnya.
+        $this->pdo->beginTransaction();
+        try {
+            $total = $this->insertChunks($samples, $cols, $ts);
+            $this->pdo->commit();
+        } catch (Throwable $e) {
+            $this->pdo->rollBack();
+            throw $e;
+        }
+
+        return $total;
+    }
+
+    /** @param ClientSample[] $samples */
+    private function insertChunks(array $samples, string $cols, string $ts): int
+    {
+        $total = 0;
+
         // Multi-row insert per 200 baris. Lebih cepat daripada satu
         // INSERT per sample, dan tidak membuat paket terlalu besar.
         foreach (array_chunk($samples, 200) as $chunk) {
