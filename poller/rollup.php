@@ -29,11 +29,12 @@ $sangatLemah = (int)$cfg['rssi_threshold_sangat_lemah'];
  */
 $sql = "
 REPLACE INTO wifi_hourly
-  (hour_ts, vendor, site, ap_name, band, samples, clients_unik,
+  (hour_ts, vendor, controller, site, ap_name, band, samples, clients_unik,
    avg_rssi, min_rssi, pct_lemah, pct_sangat_lemah)
 SELECT
   DATE_FORMAT(ts, '%Y-%m-%d %H:00:00')            AS hour_ts,
   vendor,
+  COALESCE(controller, '')                        AS controller,
   site,
   ap_name,
   COALESCE(band, '')                              AS band,
@@ -47,7 +48,7 @@ FROM wifi_samples
 WHERE ts >= DATE_FORMAT(NOW() - INTERVAL 3 HOUR, '%Y-%m-%d %H:00:00')
   AND ts <  DATE_FORMAT(NOW(), '%Y-%m-%d %H:00:00')
   AND rssi IS NOT NULL
-GROUP BY hour_ts, vendor, site, ap_name, COALESCE(band, '')
+GROUP BY hour_ts, vendor, COALESCE(controller, ''), site, ap_name, COALESCE(band, '')
 ";
 
 $stmt = $pdo->prepare($sql);

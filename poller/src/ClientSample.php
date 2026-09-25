@@ -22,5 +22,9 @@ final class ClientSample
         public ?int    $txRate,      // Mbps
         public ?int    $rxRate,
         public ?string $username = null,
+        // Label controller asal (mis. 'ruijie-nusanet-jakarta'). Diisi
+        // poller.php setelah fetch -- satu vendor bisa punya beberapa
+        // controller, jadi vendor saja tidak cukup untuk memisahkan.
+        public ?string $controller = null,
     ) {}
 }

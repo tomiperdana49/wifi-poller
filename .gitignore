@@ -11,3 +11,7 @@ dashboard/node_modules/
 # OS
 .DS_Store
 **/.DS_Store
+
+# Token API controller & backup .env/config (berisi kredensial)
+token_*.json
+*.bak.*

@@ -17,7 +17,36 @@ const state = {
   apSort: null,
   clientSort: null,
   problemSort: null,
+  // Daftar AP dari wifi_hourly untuk dropdown Tren Historis; opsinya
+  // disaring ulang tiap filter global berubah.
+  apList: [],
+  // Filter global (Vendor + Controller) -- sumber kebenaran, bukan nilai
+  // <select>-nya, karena opsi controller baru ada setelah data pertama
+  // masuk sedangkan nilai awalnya bisa datang dari URL
+  // (?controller=ruijie-nusanet-jakarta) yang di-bookmark.
+  filter: readUrlFilter(),
 };
+
+function readUrlFilter() {
+  const p = new URLSearchParams(location.search);
+  return { vendor: p.get('vendor') || '', controller: p.get('controller') || '' };
+}
+
+function writeUrlFilter() {
+  const p = new URLSearchParams(location.search);
+  for (const k of ['vendor', 'controller']) {
+    if (state.filter[k]) p.set(k, state.filter[k]);
+    else p.delete(k);
+  }
+  const qs = p.toString();
+  history.replaceState(null, '', `${location.pathname}${qs ? `?${qs}` : ''}${location.hash}`);
+}
+
+// Baris data (client/AP/problem-AP/ap-list) lolos filter global?
+function matchGlobal(r) {
+  const { vendor, controller } = state.filter;
+  return (!vendor || r.vendor === vendor) && (!controller || r.controller === controller);
+}
 
 const NUMERIC_KEYS = new Set([
   'clients', 'avg_rssi', 'min_rssi', 'lemah', 'sangat_lemah', 'rssi', 'snr',
@@ -120,7 +149,7 @@ const selects = {};
 
 function initSelects() {
   const ids = [
-    'global-filter-vendor',
+    'global-filter-vendor', 'global-filter-controller',
     'ap-filter-site', 'ap-filter-band',
     'client-filter-site', 'client-filter-band', 'client-filter-signal',
     'hist-ap', 'hist-hours',
@@ -164,9 +193,8 @@ function signalBucket(rssi) {
 // user yang sedang aktif (kalau opsinya masih ada di data baru). Lewat API
 // instance, bukan manipulasi DOM <select> langsung — Tom Select tidak
 // memantau perubahan DOM di elemen <select> yang sudah dibungkusnya.
-function syncOptions(id, values, allLabel) {
+function syncOptions(id, values, allLabel, current = selects[id].getValue()) {
   const inst = selects[id];
-  const current = inst.getValue();
   const unique = [...new Set(values)].filter(Boolean).sort();
 
   // clear(true) dulu (silent, tanpa event change): clearOptions() sengaja
@@ -181,17 +209,52 @@ function syncOptions(id, values, allLabel) {
   inst.setValue(unique.includes(current) ? current : '', true);
 }
 
-function globalVendor() {
-  return $('global-filter-vendor').value;
+// label controller -> vendor. Dari snapshot client + panel Status Poller
+// (yang tetap mendaftar controller walau sedang 0 client / gagal poll).
+function knownControllers() {
+  const m = new Map();
+  for (const r of state.clients) if (r.controller) m.set(r.controller, r.vendor);
+  for (const c of healthState.data ? healthState.data.controllers : []) m.set(c.label, c.type);
+  return m;
+}
+
+// Nilai filter yang sedang aktif selalu ikut jadi opsi, supaya pilihan
+// dari URL tetap tampil walau datanya belum masuk.
+function syncGlobalOptions() {
+  const { vendor, controller } = state.filter;
+  const known = knownControllers();
+  syncOptions(
+    'global-filter-vendor',
+    [...state.aps.map((r) => r.vendor), ...state.clients.map((r) => r.vendor), ...known.values(), vendor],
+    'Semua Vendor',
+    vendor
+  );
+  const labels = [...known].filter(([, v]) => !vendor || v === vendor).map(([l]) => l);
+  syncOptions('global-filter-controller', [...labels, controller], 'Semua Controller', controller);
+}
+
+function setGlobalFilter(next) {
+  Object.assign(state.filter, next);
+  // Ganti vendor ke yang bukan milik controller terpilih -> lepas controllernya.
+  const ctrlVendor = knownControllers().get(state.filter.controller);
+  if (state.filter.vendor && ctrlVendor && ctrlVendor !== state.filter.vendor) {
+    state.filter.controller = '';
+  }
+  writeUrlFilter();
+  syncGlobalOptions();
+  applyFilters();
+  renderProblemTable(filteredProblemAps());
+  renderHealth();
+  syncHistApOptions();
+  loadHistory();
 }
 
 function filteredAps() {
-  const vendor = globalVendor();
   const search = $('ap-filter-search').value.trim().toLowerCase();
   const site = $('ap-filter-site').value;
   const band = $('ap-filter-band').value;
   const rows = state.aps.filter((r) => {
-    if (vendor && r.vendor !== vendor) return false;
+    if (!matchGlobal(r)) return false;
     if (site && r.site !== site) return false;
     if (band && r.band !== band) return false;
     if (search) {
@@ -204,13 +267,12 @@ function filteredAps() {
 }
 
 function filteredClients() {
-  const vendor = globalVendor();
   const search = $('client-filter-search').value.trim().toLowerCase();
   const site = $('client-filter-site').value;
   const band = $('client-filter-band').value;
   const signal = $('client-filter-signal').value;
   const rows = state.clients.filter((r) => {
-    if (vendor && r.vendor !== vendor) return false;
+    if (!matchGlobal(r)) return false;
     if (site && r.site !== site) return false;
     if (band && r.band !== band) return false;
     if (signal && signalBucket(r.rssi) !== signal) return false;
@@ -225,15 +287,14 @@ function filteredClients() {
 
 // state.problemAps datang dari /api/problem-aps utk rentang waktu yang
 // sedang dipilih (di-refetch tiap rentang berubah, lihat loadProblemAps).
-// Filter site/band/vendor di sini murni client-side supaya ganti filter
-// tidak perlu round-trip lagi ke server.
+// Filter site/band/vendor/controller di sini murni client-side supaya
+// ganti filter tidak perlu round-trip lagi ke server.
 function filteredProblemAps() {
-  const vendor = globalVendor();
   const site = $('problem-filter-site').value;
   const band = $('problem-filter-band').value;
   const rows = state.problemAps.filter(
     (r) =>
-      (!vendor || r.vendor === vendor) &&
+      matchGlobal(r) &&
       (!site || r.site === site) &&
       (!band || r.band === band)
   );
@@ -330,10 +391,10 @@ function pctSeverityClass(pct) {
 
 // Overview cards dihitung ulang di sisi client dari snapshot client-live
 // yang sama dipakai tabel Client Live, supaya kartu "Client Aktif"/"AP
-// Aktif"/"Sinyal Lemah" ikut ke-scope ke vendor yang dipilih. "Update
-// Terakhir" tetap dari respons server karena tidak bergantung vendor.
-function computeOverview(vendor) {
-  const rows = vendor ? state.clients.filter((r) => r.vendor === vendor) : state.clients;
+// Aktif"/"Sinyal Lemah" ikut ke-scope ke vendor/controller yang dipilih.
+// "Update Terakhir" tetap dari respons server karena tidak bergantung filter.
+function computeOverview() {
+  const rows = state.clients.filter(matchGlobal);
   const apNames = new Set(rows.map((r) => r.ap_name));
   const sites = new Set(rows.map((r) => r.site));
   let lemah = 0;
@@ -357,7 +418,7 @@ function computeOverview(vendor) {
 // Dipanggil tiap kali filter berubah ATAU data baru masuk lewat WS, supaya
 // filter user tidak hilang ketika snapshot baru datang.
 function applyFilters() {
-  renderOverview(computeOverview(globalVendor()));
+  renderOverview(computeOverview());
   renderInsights();
   renderApsTable(filteredAps());
   renderClientsTable(filteredClients());
@@ -367,7 +428,7 @@ function updateData(overview, aps, clients) {
   state.aps = aps;
   state.clients = clients;
   state.overview = overview;
-  syncOptions('global-filter-vendor', [...aps.map((r) => r.vendor), ...clients.map((r) => r.vendor)], 'Semua Vendor');
+  syncGlobalOptions();
   syncOptions('ap-filter-site', aps.map((r) => r.site), 'Semua Site');
   syncOptions('ap-filter-band', aps.map((r) => r.band), 'Semua Band');
   syncOptions('client-filter-site', clients.map((r) => r.site), 'Semua Site');
@@ -458,12 +519,22 @@ async function loadInitial() {
 }
 
 async function loadApList() {
-  const rows = await fetch('/api/ap-list').then((r) => r.json());
+  state.apList = await fetch('/api/ap-list').then((r) => r.json());
+  syncHistApOptions();
+}
+
+function syncHistApOptions() {
   const inst = selects['hist-ap'];
+  const current = inst.getValue();
+  const rows = state.apList.filter(matchGlobal);
+  inst.clear(true);
+  inst.clearOptions();
+  inst.addOption({ value: '', text: 'Semua AP' });
   for (const r of rows) {
     inst.addOption({ value: r.ap_name, text: `${r.ap_name} (${r.site})` });
   }
   inst.refreshOptions(false);
+  inst.setValue(rows.some((r) => r.ap_name === current) ? current : '', true);
 }
 
 // Format Date lokal (bukan UTC) ke bentuk yang diterima <input
@@ -522,6 +593,8 @@ async function loadHistory() {
   if (!params) return;
   const ap = $('hist-ap').value;
   if (ap) params.set('ap', ap);
+  if (state.filter.vendor) params.set('vendor', state.filter.vendor);
+  if (state.filter.controller) params.set('controller', state.filter.controller);
   const rows = await fetch(`/api/history?${params}`).then((r) => r.json());
   renderChart(rows);
 }
@@ -695,13 +768,13 @@ function initNavHighlight() {
 // ---------- ringkasan: distribusi sinyal & AP terburuk ----------
 
 function renderInsights() {
-  const vendor = globalVendor();
-  const rows = vendor ? state.clients.filter((r) => r.vendor === vendor) : state.clients;
+  const rows = state.clients.filter(matchGlobal);
 
   const groups = new Map();
   for (const r of rows) {
-    if (!groups.has(r.vendor)) groups.set(r.vendor, { ok: 0, lemah: 0, sangat_lemah: 0, total: 0 });
-    const g = groups.get(r.vendor);
+    const name = r.controller || r.vendor;
+    if (!groups.has(name)) groups.set(name, { ok: 0, lemah: 0, sangat_lemah: 0, total: 0 });
+    const g = groups.get(name);
     const b = signalBucket(r.rssi);
     if (b) g[b]++;
     g.total++;
@@ -736,9 +809,9 @@ function renderInsights() {
   // Minimal 3 client supaya AP dengan 1 client jelek tidak mendominasi.
   const aps = new Map();
   for (const r of state.aps) {
-    if (vendor && r.vendor !== vendor) continue;
+    if (!matchGlobal(r)) continue;
     const key = `${r.site}\u0000${r.ap_name}`;
-    if (!aps.has(key)) aps.set(key, { site: r.site, ap_name: r.ap_name, vendor: r.vendor, clients: 0, bad: 0 });
+    if (!aps.has(key)) aps.set(key, { site: r.site, ap_name: r.ap_name, source: r.controller || r.vendor, clients: 0, bad: 0 });
     const a = aps.get(key);
     a.clients += Number(r.clients) || 0;
     a.bad += Number(r.sangat_lemah) || 0;
@@ -755,7 +828,7 @@ function renderInsights() {
       (a) => `<li data-ap="${esc(a.ap_name)}" title="Klik untuk cari AP ini di tabel">
         <div class="worst-main">
           <span class="worst-name">${esc(a.ap_name)}</span>
-          <span class="worst-site">${esc(a.site)} &middot; ${esc(a.vendor)}</span>
+          <span class="worst-site">${esc(a.site)} &middot; ${esc(a.source)}</span>
         </div>
         <div class="worst-meter"><span style="width:${Math.min(100, a.pct)}%"></span></div>
         <div class="worst-val"><b>${a.pct}%</b><small>${a.bad}/${a.clients}</small></div>
@@ -819,10 +892,16 @@ function sparkline(series, status) {
 function renderHealth() {
   const h = healthState.data;
   if (!h) return;
+  // Controller baru (atau yang cuma ada di health, 0 client) ikut jadi opsi.
+  syncGlobalOptions();
 
   const grid = $('controller-grid');
   const empty = $('health-empty');
-  const failing = h.controllers.filter((c) => c.status !== 'ok');
+  // Panel ikut filter global: pilih "omada" -> cuma kartu omada. Banner
+  // peringatan di atas (tickAges) tetap menghitung semua controller supaya
+  // gangguan di controller lain tidak tersembunyi.
+  const shown = h.controllers.filter((c) => matchGlobal({ vendor: c.type, controller: c.label }));
+  const failing = shown.filter((c) => c.status !== 'ok');
 
   const overall = h.stale ? 'stale' : failing.length ? 'error' : h.available ? 'ok' : 'unknown';
   const pill = $('health-overall');
@@ -838,15 +917,16 @@ function renderHealth() {
     grid.innerHTML = '';
     empty.hidden = false;
     empty.innerHTML = 'Pencatatan status poller belum aktif. Jalankan migration <code>poller/sql/001_poller_health.sql</code> di server.';
-  } else if (!h.controllers.length) {
+  } else if (!shown.length) {
     grid.innerHTML = '';
     empty.hidden = false;
     empty.textContent = 'Belum ada catatan run dari poller. Tunggu satu siklus (±1 menit).';
   } else {
     empty.hidden = true;
-    grid.innerHTML = h.controllers
+    grid.innerHTML = shown
       .map(
-        (c, i) => `<article class="ctrl ${c.status}">
+        (c) => `<article class="ctrl ${c.status}${c.label === state.filter.controller ? ' selected' : ''}" data-label="${esc(c.label)}"
+          title="${c.label === state.filter.controller ? 'Klik untuk tampilkan semua controller' : 'Klik untuk monitor controller ini saja'}">
           <div class="ctrl-head">
             <span class="status-pill ${c.status}">${STATUS_LABEL[c.status]}</span>
             <span class="vendor-tag">${esc(c.type)}</span>
@@ -855,7 +935,7 @@ function renderHealth() {
           <div class="ctrl-value${c.status === 'stale' ? ' dim' : ''}" title="${c.status === 'stale' ? 'Jumlah dari run terakhir' : ''}">${c.status === 'error' ? '&ndash;' : fmtNum(c.clients)}<small>client</small></div>
           ${sparkline(c.series, c.status)}
           <dl class="ctrl-meta">
-            <div><dt>Run terakhir</dt><dd data-age-idx="${i}">${fmtAge(c.age_s + elapsed())}</dd></div>
+            <div><dt>Run terakhir</dt><dd data-age-label="${esc(c.label)}">${fmtAge(c.age_s + elapsed())}</dd></div>
             <div><dt>Durasi</dt><dd>${fmtMs(c.duration_ms)}</dd></div>
             <div><dt>Gagal 24j</dt><dd class="${c.fails_24h ? 'rssi-bad' : ''}">${fmtNum(c.fails_24h)}/${fmtNum(c.runs_24h)}</dd></div>
           </dl>
@@ -882,6 +962,9 @@ function renderHealth() {
       chips.push(`<span class="chip ${c24.pct_resolved < 20 ? 'warn' : ''}" title="Persentase client yang username-nya ketemu di radacct">Username ter-resolve <b>${String(c24.pct_resolved).replace('.', ',')}%</b></span>`);
     }
   }
+  if (state.filter.vendor || state.filter.controller) {
+    chips.push('<button type="button" class="chip chip-btn" id="health-show-all" title="Hapus filter Vendor &amp; Controller">Tampilkan semua controller</button>');
+  }
   $('health-stats').innerHTML = chips.join('');
 
   tickAges();
@@ -900,8 +983,9 @@ function tickAges() {
   box.classList.toggle('bad', !!stale);
 
   if (h) {
-    document.querySelectorAll('[data-age-idx]').forEach((el) => {
-      const c = h.controllers[Number(el.dataset.ageIdx)];
+    const byLabel = new Map(h.controllers.map((c) => [c.label, c]));
+    document.querySelectorAll('[data-age-label]').forEach((el) => {
+      const c = byLabel.get(el.dataset.ageLabel);
       if (c) el.textContent = fmtAge(c.age_s + elapsed());
     });
   }
@@ -933,9 +1017,16 @@ $('hist-ap').addEventListener('change', loadHistory);
 $('problem-filter-site').addEventListener('change', () => renderProblemTable(filteredProblemAps()));
 $('problem-filter-band').addEventListener('change', () => renderProblemTable(filteredProblemAps()));
 
-$('global-filter-vendor').addEventListener('change', () => {
-  applyFilters();
-  renderProblemTable(filteredProblemAps());
+$('global-filter-vendor').addEventListener('change', (e) => setGlobalFilter({ vendor: e.target.value }));
+$('global-filter-controller').addEventListener('change', (e) => setGlobalFilter({ controller: e.target.value }));
+$('health-stats').addEventListener('click', (e) => {
+  if (e.target.closest('#health-show-all')) setGlobalFilter({ vendor: '', controller: '' });
+});
+$('controller-grid').addEventListener('click', (e) => {
+  const card = e.target.closest('article.ctrl[data-label]');
+  if (!card) return;
+  const label = card.dataset.label;
+  setGlobalFilter({ controller: state.filter.controller === label ? '' : label });
 });
 $('ap-filter-site').addEventListener('change', applyFilters);
 $('ap-filter-band').addEventListener('change', applyFilters);
@@ -953,6 +1044,7 @@ $('card-ts-box').addEventListener('click', () => $('section-health').scrollIntoV
 
 initChartTheme();
 initSelects();
+syncGlobalOptions();
 initSortableHeaders();
 initNavHighlight();
 loadInitial();

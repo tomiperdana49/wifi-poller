@@ -191,6 +191,12 @@ header {
   font-size: 12px;
 }
 
+/* Label controller (mis. ruijie-nusanet-jakarta) lebih panjang dari
+   nama vendor -- jangan sampai terpotong di kotak pilihannya. */
+.global-filter .ts-wrapper {
+  min-width: 180px;
+}
+
 /* ---------- layout ---------- */
 
 main {
@@ -862,10 +868,22 @@ footer code {
   background: var(--good);
 }
 
+.ctrl { cursor: pointer; transition: border-color 0.15s, box-shadow 0.15s; }
+.ctrl:hover { border-color: var(--accent); }
+
 .ctrl.error { border-color: rgba(217, 115, 106, 0.45); }
 .ctrl.error::before { background: var(--bad); }
 .ctrl.stale { border-color: rgba(217, 161, 84, 0.45); }
 .ctrl.stale::before { background: var(--warn); }
+.chip-btn {
+  cursor: pointer;
+  font-family: inherit;
+  color: var(--accent);
+  border-color: var(--accent);
+}
+.chip-btn:hover { background: var(--accent-dim); }
+
+.ctrl.selected { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-dim); }
 
 .ctrl-head {
   display: flex;

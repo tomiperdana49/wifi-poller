@@ -125,6 +125,9 @@ try {
         $t0  = microtime(true);
         try {
             $s = $poller->fetchClients();
+            foreach ($s as $sample) {
+                $sample->controller = $poller->label();
+            }
             logLine(sprintf('%-24s %4d client', $poller->label(), count($s)));
             $semua = array_merge($semua, $s);
             $run['ok']      = true;

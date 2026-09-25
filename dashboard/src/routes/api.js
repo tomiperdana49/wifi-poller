@@ -55,6 +55,8 @@ router.get('/history', async (req, res, next) => {
       await q.history({
         site: req.query.site,
         apName: req.query.ap,
+        vendor: req.query.vendor,
+        controller: req.query.controller,
         hours: req.query.hours,
         from: req.query.from,
         to: req.query.to,
@@ -72,6 +74,7 @@ router.get('/problem-aps', async (req, res, next) => {
         site: req.query.site,
         band: req.query.band,
         vendor: req.query.vendor,
+        controller: req.query.controller,
         hours: req.query.hours,
         from: req.query.from,
         to: req.query.to,

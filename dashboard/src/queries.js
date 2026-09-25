@@ -15,7 +15,7 @@ async function latestTs() {
 // "ts = MAX(ts)" itu representasi kondisi live.
 async function liveClients() {
   const [rows] = await pool.query(
-    `SELECT vendor, site, ap_name, ap_mac, ssid, band, channel,
+    `SELECT vendor, controller, site, ap_name, ap_mac, ssid, band, channel,
             client_mac, username, rssi, snr, tx_rate, rx_rate, ts
      FROM wifi_samples
      WHERE ts = (SELECT MAX(ts) FROM wifi_samples)
@@ -26,7 +26,7 @@ async function liveClients() {
 
 async function apSummary() {
   const [rows] = await pool.query(
-    `SELECT vendor, site, ap_name, band,
+    `SELECT vendor, controller, site, ap_name, band,
             COUNT(*)               AS clients,
             ROUND(AVG(rssi), 1)    AS avg_rssi,
             MIN(rssi)              AS min_rssi,
@@ -34,7 +34,7 @@ async function apSummary() {
             SUM(rssi < ?)          AS sangat_lemah
      FROM wifi_samples
      WHERE ts = (SELECT MAX(ts) FROM wifi_samples)
-     GROUP BY vendor, site, ap_name, band
+     GROUP BY vendor, controller, site, ap_name, band
      ORDER BY site, ap_name`,
     [LEMAH, SANGAT_LEMAH]
   );
@@ -62,7 +62,7 @@ function normalizeDatetime(s) {
   return String(s).replace('T', ' ');
 }
 
-async function history({ site, apName, hours, from, to }) {
+async function history({ site, apName, vendor, controller, hours, from, to }) {
   const params = [];
   const conditions = [];
   // Rentang kustom (from+to) menang kalau keduanya diisi; kalau cuma
@@ -82,7 +82,15 @@ async function history({ site, apName, hours, from, to }) {
     conditions.push('ap_name = ?');
     params.push(apName);
   }
-  const sql = `SELECT hour_ts, vendor, site, ap_name, band, samples, clients_unik,
+  if (vendor) {
+    conditions.push('vendor = ?');
+    params.push(vendor);
+  }
+  if (controller) {
+    conditions.push('controller = ?');
+    params.push(controller);
+  }
+  const sql = `SELECT hour_ts, vendor, controller, site, ap_name, band, samples, clients_unik,
                       avg_rssi, min_rssi, pct_lemah, pct_sangat_lemah
                FROM wifi_hourly
                WHERE ${conditions.join(' AND ')}
@@ -98,7 +106,7 @@ async function history({ site, apName, hours, from, to }) {
 // punya >0% client dengan sinyal sangat lemah; avg_pct_sangat_lemah
 // dibobot per jumlah sample tiap jam supaya jam sepi tidak menyamai
 // bobotnya dengan jam ramai.
-async function problemAps({ hours, from, to, site, band, vendor }) {
+async function problemAps({ hours, from, to, site, band, vendor, controller }) {
   const params = [];
   const conditions = [];
   if (from && to) {
@@ -120,7 +128,11 @@ async function problemAps({ hours, from, to, site, band, vendor }) {
     conditions.push('vendor = ?');
     params.push(vendor);
   }
-  const sql = `SELECT vendor, site, ap_name, band,
+  if (controller) {
+    conditions.push('controller = ?');
+    params.push(controller);
+  }
+  const sql = `SELECT vendor, controller, site, ap_name, band,
                       COUNT(*)                                            AS jam_terpantau,
                       SUM(pct_sangat_lemah > 0)                           AS jam_bermasalah,
                       ROUND(SUM(pct_sangat_lemah * samples) / NULLIF(SUM(samples), 0), 1)
@@ -129,7 +141,7 @@ async function problemAps({ hours, from, to, site, band, vendor }) {
                       SUM(samples)                                        AS total_samples
                FROM wifi_hourly
                WHERE ${conditions.join(' AND ')}
-               GROUP BY vendor, site, ap_name, band
+               GROUP BY vendor, controller, site, ap_name, band
                HAVING jam_bermasalah > 0
                ORDER BY avg_pct_sangat_lemah DESC, jam_bermasalah DESC`;
   const [rows] = await pool.query(sql, params);
@@ -143,7 +155,7 @@ async function problemAps({ hours, from, to, site, band, vendor }) {
 
 async function apList() {
   const [rows] = await pool.query(
-    `SELECT DISTINCT site, ap_name FROM wifi_hourly ORDER BY site, ap_name`
+    `SELECT DISTINCT vendor, controller, site, ap_name FROM wifi_hourly ORDER BY site, ap_name`
   );
   return rows;
 }
