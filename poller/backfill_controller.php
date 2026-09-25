@@ -5,11 +5,18 @@ declare(strict_types=1);
  * Isi kolom controller untuk data yang ditulis sebelum migration
  * sql/002_controller_column.sql. Dijalankan manual, aman diulang.
  *
- * Pemetaan diambil dari sample 24 jam terakhir yang sudah berlabel:
+ * Pemetaan diambil dari sample 2 jam terakhir yang sudah berlabel:
  * (vendor, site) -> controller, hanya kalau site itu cuma muncul di SATU
  * controller. Site yang ambigu atau belum muncul lagi sejak deploy
  * dibiarkan kosong -- jalankan ulang besok untuk menangkap site yang
  * baru aktif lagi.
+ *
+ * Hanya wifi_hourly yang dilabeli -- wifi_samples lama tidak disentuh
+ * (UPDATE ratusan ribu baris per jam terlalu lambat). Karena rollup.php
+ * mengagregasi ulang 3 jam terakhir, jalankan script ini SETELAH rollup
+ * pertama yang jendelanya sudah seluruhnya berisi sample berlabel (>= 3
+ * jam setelah deploy poller); kalau lebih cepat, rollup berikutnya akan
+ * membuat ulang baris controller='' untuk jam transisi.
  *
  *   php backfill_controller.php            backfill
  *   php backfill_controller.php --dry-run  cuma cetak pemetaan
@@ -35,7 +42,7 @@ function logLine(string $msg): void
 $rows = $pdo->query(
     "SELECT vendor, site, MIN(controller) AS controller
      FROM wifi_samples
-     WHERE ts >= NOW() - INTERVAL 1 DAY AND controller IS NOT NULL
+     WHERE ts >= NOW() - INTERVAL 2 HOUR AND controller IS NOT NULL
      GROUP BY vendor, site
      HAVING COUNT(DISTINCT controller) = 1"
 )->fetchAll();
@@ -58,13 +65,6 @@ if ($dryRun) {
     exit(0);
 }
 
-/*
- * wifi_samples: cukup beberapa jam terakhir -- rollup.php mengagregasi
- * ulang 3 jam ke belakang, jadi sample di rentang itu yang masih NULL
- * akan jadi baris wifi_hourly controller='' lagi. Data lebih tua dari itu
- * tidak dibaca dashboard (hanya snapshot terakhir). Per 15 menit supaya
- * transaksi pendek dan insert poller tidak tertahan lock.
- */
 $ctrlCase = [];
 foreach ($map as $ctrl => $byVendor) {
     foreach ($byVendor as $vendor => $sites) {
@@ -85,26 +85,6 @@ function mapJoin(array $chunk, array &$params): string
     }
     return '(' . implode(' UNION ALL ', $parts) . ')';
 }
-
-$start = strtotime(date('Y-m-d H:00:00', strtotime('-4 hour')));
-$end   = time();
-$nSamples = 0;
-for ($t = $start; $t < $end; $t += 900) {
-    foreach (array_chunk($ctrlCase, 500) as $chunk) {
-        $p   = [];
-        $sub = mapJoin($chunk, $p);
-        $sql = "UPDATE wifi_samples s JOIN $sub m
-                  ON m.vendor = s.vendor AND m.site = s.site
-                SET s.controller = m.controller
-                WHERE s.ts >= ? AND s.ts < ? AND s.controller IS NULL";
-        $p[] = date('Y-m-d H:i:s', $t);
-        $p[] = date('Y-m-d H:i:s', $t + 900);
-        $st  = $pdo->prepare($sql);
-        $st->execute($p);
-        $nSamples += $st->rowCount();
-    }
-}
-logLine("wifi_samples (4 jam terakhir): $nSamples baris");
 
 /*
  * wifi_hourly: semua baris ''. UPDATE IGNORE -- kalau jam itu sudah punya
